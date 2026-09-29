@@ -35,11 +35,12 @@ COPY templates ./templates
 # Generated workspaces are bind-mounted from a named volume at runtime.
 # GENERATED_DIR must point outside the image so artifacts survive redeploys.
 ENV GENERATED_DIR=/var/lib/aladdin/generated
+# Access to the host's Docker socket is granted at runtime via group_add in
+# deploy/compose.yml, not baked in here: the gid differs per host, and a
+# hardcoded 999 silently mismatched the deployment VM's docker group (114).
 RUN mkdir -p "$GENERATED_DIR" \
     && useradd --create-home --uid 10001 aladdin \
-    && chown -R aladdin:aladdin /app "$GENERATED_DIR" \
-    && groupadd --gid 999 docker-host \
-    && usermod -aG docker-host aladdin
+    && chown -R aladdin:aladdin /app "$GENERATED_DIR"
 
 USER aladdin
 

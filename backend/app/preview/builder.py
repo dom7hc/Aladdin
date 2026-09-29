@@ -8,6 +8,7 @@ published port. Requires the Docker socket to be available to this process
 """
 
 import asyncio
+import logging
 import socket
 import subprocess
 import time
@@ -17,6 +18,8 @@ from pathlib import Path
 from typing import Any
 
 from app import config
+
+logger = logging.getLogger(__name__)
 
 COMPOSE_TIMEOUT_SECONDS = 900
 
@@ -43,27 +46,42 @@ def docker_available() -> bool:
         return False
 
 
-def pick_port(occupied: set[int] | None = None) -> int:
-    """First free port in the configured preview range.
+def slot_port(slot: int) -> int:
+    """Loopback port a preview slot publishes on."""
+    return config.PREVIEW_PORT_BASE + slot
 
-    ``occupied`` lists ports already published by other preview stacks: on
-    Windows a plain bind-probe can succeed against a 0.0.0.0 listener, so the
-    DB-known ports must be excluded before probing.
+
+def public_url(slot: int) -> str:
+    """Browser-reachable URL for a preview slot.
+
+    One port per slot, not one path per slot: generated frontends call
+    absolute /api/... paths (see app/generation/contract.py), so a shared path
+    prefix would send those calls to this platform's API instead of the PoC's.
+    A distinct origin per preview keeps absolute paths inside that preview.
+    """
+    host = config.PUBLIC_BASE_URL.rstrip("/")
+    return f"{host}:{config.PREVIEW_PUBLIC_PORT_BASE + slot}/"
+
+
+def pick_slot(occupied: set[int] | None = None) -> int:
+    """Lowest free preview slot.
+
+    ``occupied`` lists slots already held by running previews: on Windows a
+    plain bind-probe can succeed against a 0.0.0.0 listener, so the DB-known
+    slots must be excluded before probing.
     """
     taken = occupied or set()
-    for port in range(
-        config.PREVIEW_PORT_BASE, config.PREVIEW_PORT_BASE + config.PREVIEW_PORT_RANGE
-    ):
-        if port in taken:
+    for slot in range(1, config.PREVIEW_SLOTS + 1):
+        if slot in taken:
             continue
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             try:
-                probe.bind(("127.0.0.1", port))
+                probe.bind(("127.0.0.1", slot_port(slot)))
             except OSError:
                 continue
-        return port
+        return slot
     raise PreviewError(
-        f"No free port in {config.PREVIEW_PORT_BASE}..{config.PREVIEW_PORT_BASE + config.PREVIEW_PORT_RANGE - 1}"
+        f"All {config.PREVIEW_SLOTS} preview slots are in use; stop a running preview and try again"
     )
 
 
@@ -160,7 +178,7 @@ def _tail(text: str, limit: int = 1_500) -> str:
 
 
 async def build_and_start(project_id: str, occupied: set[int] | None = None) -> int:
-    """Async orchestration used by the preview service."""
+    """Async orchestration used by the preview service. Returns the slot."""
     if not await asyncio.to_thread(docker_available):
         raise PreviewError(
             "Docker is not available to this backend; preview requires a mounted Docker socket"
@@ -170,9 +188,15 @@ async def build_and_start(project_id: str, occupied: set[int] | None = None) -> 
     source_dir = Path(ws.source_dir(project_id))
     if not (source_dir / "backend" / "main.py").is_file():
         raise PreviewError("Generated workspace is empty; run generate first")
-    port = await asyncio.to_thread(pick_port, occupied)
+    slot = await asyncio.to_thread(pick_slot, occupied)
+    port = slot_port(slot)
     await asyncio.to_thread(stack_up, source_dir, project_id, port)
     healthy = await asyncio.to_thread(wait_healthy, port)
     if not healthy:
+        # Leaving a half-started stack behind would hold the slot forever.
+        try:
+            await asyncio.to_thread(stack_down, project_id, source_dir)
+        except PreviewError:
+            logger.warning("Could not tear down unhealthy preview for %s", project_id)
         raise PreviewError(f"Preview containers are up but /health never answered on port {port}")
-    return port
+    return slot

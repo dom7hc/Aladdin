@@ -46,13 +46,30 @@ LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
 # for open-ended chat workloads.
 LLM_THINKING = os.getenv("LLM_THINKING", "disabled")
 
-# Generated-PoC preview deployment (local Docker only). The backend builds and
-# runs the generated PoC via the host Docker daemon through the mounted socket.
+# Generated-PoC preview deployment. The backend builds and runs the generated
+# PoC via the host Docker daemon through the mounted socket.
+#
+# Previews occupy numbered slots rather than arbitrary ports, because each one
+# needs a public address the reverse proxy knows about ahead of time. Slot N
+# publishes on loopback PREVIEW_PORT_BASE + N and is served publicly on
+# PREVIEW_PUBLIC_PORT_BASE + N. Both bases must stay in step with the site
+# blocks in deploy/caddy/Caddyfile.
 PREVIEW_PORT_BASE = int(os.getenv("PREVIEW_PORT_BASE", "8200"))
-PREVIEW_PORT_RANGE = int(os.getenv("PREVIEW_PORT_RANGE", "50"))
-# Host the backend uses to reach preview ports published on the host.
+PREVIEW_SLOTS = int(os.getenv("PREVIEW_SLOTS", "6"))
+PREVIEW_PUBLIC_PORT_BASE = int(os.getenv("PREVIEW_PUBLIC_PORT_BASE", "9000"))
+# Host the backend uses to reach preview ports published on the host. On Linux
+# this resolves only because the backend service declares
+# extra_hosts: host.docker.internal:host-gateway.
 PREVIEW_HEALTH_HOST = os.getenv("PREVIEW_HEALTH_HOST", "host.docker.internal")
 PREVIEW_HEALTH_TIMEOUT_SECONDS = float(os.getenv("PREVIEW_HEALTH_TIMEOUT_SECONDS", "90"))
+# How long a preview stays up before the reaper stops it.
+PREVIEW_TTL_SECONDS = float(os.getenv("PREVIEW_TTL_SECONDS", "3600"))
+PREVIEW_REAP_INTERVAL_SECONDS = float(os.getenv("PREVIEW_REAP_INTERVAL_SECONDS", "300"))
+
+# Public origin of this deployment, used to build preview URLs that work from
+# a browser. Without it previews would advertise localhost, which only
+# resolves for someone sitting at the Docker host.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost")
 
 # Comma-separated list of allowed browser origins (CORS).
 CORS_ORIGINS = [

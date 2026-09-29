@@ -7,11 +7,13 @@ mirroring the generation flow.
 
 import asyncio
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app import config
 from app.preview import builder
 from app.repositories.project_repository import ProjectRepository
 from app.schemas.project import utcnow
@@ -24,7 +26,15 @@ class PreviewNotReadyError(Exception):
 
 
 def _default_state() -> dict[str, Any]:
-    return {"status": "none", "port": None, "url": None, "message": None, "updatedAt": None}
+    return {
+        "status": "none",
+        "slot": None,
+        "port": None,
+        "url": None,
+        "message": None,
+        "updatedAt": None,
+        "expiresAt": None,
+    }
 
 
 class PreviewService:
@@ -58,32 +68,69 @@ class PreviewService:
                 "Docker is not available to this backend; preview deployment "
                 "needs a mounted Docker socket (supported on the local stack)"
             )
+        # Reject before spending minutes on a build that has nowhere to land.
+        if len(await self._occupied_slots()) >= config.PREVIEW_SLOTS:
+            raise PreviewNotReadyError(
+                f"All {config.PREVIEW_SLOTS} preview slots are in use; "
+                "stop a running preview and try again"
+            )
         return await self._save_state(project_id, status="building")
 
-    async def _occupied_ports(self) -> set[int]:
-        """Ports published by previews that are currently running."""
+    async def _occupied_slots(self) -> set[int]:
+        """Slots held by previews that are currently running or building."""
         cursor = self.repo.collection.find(
-            {"preview.status": "running", "preview.port": {"$ne": None}},
-            {"preview.port": 1},
+            {"preview.status": {"$in": ["running", "building"]}, "preview.slot": {"$ne": None}},
+            {"preview.slot": 1},
         )
-        return {doc["preview"]["port"] async for doc in cursor}
+        return {doc["preview"]["slot"] async for doc in cursor}
 
     async def run_build(self, project_id: str) -> None:
         """Background task: build, start and health-check the preview stack."""
         try:
-            occupied = await self._occupied_ports()
-            port = await builder.build_and_start(project_id, occupied)
+            occupied = await self._occupied_slots()
+            slot = await builder.build_and_start(project_id, occupied)
         except (builder.PreviewError, OSError) as exc:
             logger.warning("Preview build failed for %s: %s", project_id, exc)
             await self._save_state(project_id, status="failed", message=str(exc)[:1500])
             return
+        expires = utcnow() + timedelta(seconds=config.PREVIEW_TTL_SECONDS)
         await self._save_state(
             project_id,
             status="running",
-            port=port,
-            url=f"http://localhost:{port}",
+            slot=slot,
+            port=builder.slot_port(slot),
+            url=builder.public_url(slot),
             message="PoC preview is live",
+            expiresAt=expires.isoformat(),
         )
+
+    async def reap_expired(self) -> int:
+        """Stop previews past their TTL. Returns how many were stopped.
+
+        Previews are ephemeral; without this they accumulate until the VM
+        fills and deployments start failing.
+        """
+        now = utcnow()
+        cursor = self.repo.collection.find(
+            {"preview.status": "running", "preview.expiresAt": {"$ne": None}},
+            {"preview.expiresAt": 1},
+        )
+        expired: list[str] = []
+        async for doc in cursor:
+            raw = doc["preview"]["expiresAt"]
+            try:
+                if datetime.fromisoformat(raw) <= now:
+                    expired.append(str(doc["_id"]))
+            except (TypeError, ValueError):
+                logger.warning("Unparseable preview expiresAt on %s: %r", doc["_id"], raw)
+
+        for project_id in expired:
+            try:
+                await self.stop(project_id)
+                logger.info("Reaped expired preview for %s", project_id)
+            except Exception:
+                logger.exception("Could not reap preview for %s", project_id)
+        return len(expired)
 
     async def stop(self, project_id: str) -> dict[str, Any]:
         await self._load(project_id)
