@@ -3,8 +3,12 @@
 # is never edited at deploy time.
 #
 # Required: IMAGE_TAG, DEPLOY_ENV, COMPOSE_PROJECT_NAME, MONGO_DATABASE,
-#           PUBLIC_PORT, AZURE_REGISTRY
+#           PUBLIC_PORT, AZURE_REGISTRY, MONGODB_URI
 # Supplied by /opt/aladdin/<env>/runtime.env on the VM (never in Git).
+#
+# MONGODB_URI points at the managed Cosmos DB for MongoDB vCore cluster
+# (n4s-docdb-cluster), reached over the private endpoint in the vnet. It
+# carries credentials, so it lives only in runtime.env.
 
 services:
   frontend:
@@ -14,7 +18,7 @@ services:
       backend:
         condition: service_healthy
     # Loopback only: the Caddy reverse proxy is the sole public entry point
-    # and terminates TLS. Backend and mongo stay internal to the stack.
+    # and terminates TLS. The backend stays internal to the stack.
     ports:
       - "127.0.0.1:${PUBLIC_PORT}:80"
     healthcheck:
@@ -29,11 +33,10 @@ services:
   backend:
     image: ${AZURE_REGISTRY}.azurecr.io/aladdin-backend:${IMAGE_TAG}
     restart: unless-stopped
-    depends_on:
-      mongo:
-        condition: service_healthy
     environment:
-      MONGODB_URI: mongodb://mongo:27017
+      # Fail the deploy loudly if runtime.env is missing the URI, rather
+      # than silently starting against a default that no longer exists.
+      MONGODB_URI: ${MONGODB_URI:?MONGODB_URI must be set in runtime.env}
       MONGODB_DB: ${MONGO_DATABASE}
       GENERATED_DIR: /var/lib/aladdin/generated
       DEPLOY_ENV: ${DEPLOY_ENV}
@@ -58,19 +61,5 @@ services:
       retries: 5
       start_period: 15s
 
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    # No published ports: reachable only on the project network.
-    volumes:
-      - mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-
 volumes:
-  mongo-data:
   generated:
