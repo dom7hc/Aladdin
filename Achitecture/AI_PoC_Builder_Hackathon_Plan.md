@@ -224,7 +224,7 @@ Backend
 Python + FastAPI
 
 Database
-PostgreSQL
+MongoDB
 
 AI
 OpenAI / Azure OpenAI
@@ -519,25 +519,22 @@ READY
 FAILED
 ```
 
-### Project Table
+### Project Collection
 
 ```text
-Project
+Project (MongoDB document)
 
 id
 name
 status
+artifacts      (embedded array)
 created_at
 updated_at
 ```
 
-### Artifact Table
+### Artifact (embedded in Project)
 
 ```text
-ProjectArtifact
-
-id
-project_id
 type
 content
 version
@@ -868,7 +865,7 @@ Use AI only to analyze errors and prepare structured feedback for the Developer 
                 ┌────────────┼─────────────┐
                 │            │             │
                 ▼            ▼             ▼
-          PostgreSQL       Git/Files       LLM
+           MongoDB        Git/Files       LLM
                                            │
                     ┌──────────────────────┤
                     │                      │

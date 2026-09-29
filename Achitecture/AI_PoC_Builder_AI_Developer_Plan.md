@@ -176,7 +176,7 @@ Example:
 ```text
 Frontend: React
 Backend: FastAPI
-Database: PostgreSQL
+Database: MongoDB
 AI: OpenAI / Azure OpenAI
 ```
 

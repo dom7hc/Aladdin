@@ -24,8 +24,8 @@ The backend is the central orchestrator.
 ```text
 Python
 FastAPI
-PostgreSQL
-SQLAlchemy
+MongoDB
+Motor (async driver)
 Pydantic
 ```
 
@@ -47,10 +47,10 @@ Application Services
 Agent Orchestrator
       ↓
 LLM / Agents
-      ↓
+       ↓
 Project Workspace
-      ↓
-PostgreSQL
+       ↓
+MongoDB
 ```
 
 ---
@@ -78,17 +78,70 @@ backend/
 
 ## 5. Core Data Model
 
-### Project
+Data is stored in MongoDB using two collections:
 
 ```text
-id
-name
-description
-status
-current_step
-completion
-created_at
-updated_at
+projects      – project state, embedded requirements and artifacts
+messages      – chat history, append-only per project
+```
+
+### projects collection
+
+```json
+{
+  "_id": "ObjectId",
+  "name": "Invoice Analyzer",
+  "description": "I want an AI application that analyzes invoices.",
+  "status": "REQUIREMENT_COLLECTION",
+  "current_step": null,
+  "completion": 0,
+  "requirements": {
+    "content": {
+      "problem": "",
+      "targetUsers": [],
+      "features": [],
+      "inputs": [],
+      "outputs": [],
+      "constraints": [],
+      "successCriteria": []
+    },
+    "completion": 0,
+    "updated_at": "ISODate"
+  },
+  "artifacts": [
+    {
+      "type": "REQUIREMENTS_MD",
+      "content": "# Invoice Analyzer ...",
+      "version": 1,
+      "created_at": "ISODate"
+    }
+  ],
+  "created_at": "ISODate",
+  "updated_at": "ISODate"
+}
+```
+
+Requirements and artifacts are embedded because they are bounded in size and always read with the project.
+
+### messages collection
+
+```json
+{
+  "_id": "ObjectId",
+  "project_id": "ObjectId",
+  "role": "user",
+  "content": "Finance employees will use it.",
+  "created_at": "ISODate"
+}
+```
+
+Chat is a separate collection because it grows without bound.
+
+### Indexes
+
+```text
+projects._id       – default
+messages.project_id – create index
 ```
 
 Possible status values:
@@ -104,58 +157,6 @@ REVIEWING
 TESTING
 READY
 FAILED
-```
-
----
-
-### ProjectRequirement
-
-```text
-project_id
-content_json
-completion
-updated_at
-```
-
-Use JSONB for hackathon.
-
-Example:
-
-```json
-{
-  "problem": "",
-  "targetUsers": [],
-  "features": [],
-  "inputs": [],
-  "outputs": [],
-  "constraints": [],
-  "successCriteria": []
-}
-```
-
----
-
-### ChatMessage
-
-```text
-id
-project_id
-role
-content
-created_at
-```
-
----
-
-### ProjectArtifact
-
-```text
-id
-project_id
-type
-content
-version
-created_at
 ```
 
 Artifact types:
@@ -530,7 +531,7 @@ Deliver:
 
 ```text
 Chat storage
-Requirement JSONB
+Requirement document
 Requirement Agent integration
 Finalize endpoint
 requirements.md renderer
