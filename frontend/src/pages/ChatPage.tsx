@@ -10,7 +10,6 @@ import { MaterialIcon } from '@/components/ui/MaterialIcon'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { WizardStepper } from '@/components/ui/WizardStepper'
 import { EMPTY_REQUIREMENTS } from '@/lib/requirements'
-import { cn } from '@/lib/cn'
 import { formatClockTime } from '@/lib/format'
 import { statusMeta } from '@/lib/status'
 import { useProjectQuery } from '@/hooks/useProject'
@@ -86,7 +85,7 @@ export function ChatPage() {
   if (projectQuery.isPending || messagesQuery.isPending) {
     return (
       <AppLayout>
-        <LoadingState label="Summoning the Genie Architect…" />
+        <LoadingState label="Summoning Alladin…" />
       </AppLayout>
     )
   }
@@ -155,14 +154,10 @@ export function ChatPage() {
                     }}
                     rows={2}
                     disabled={sendMessage.isPending}
-                    placeholder="Tell the Genie your specs or answer the questions…"
+                    placeholder="Tell Alladin your specs or answer the questions…"
                     className="w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed text-on-surface outline-none placeholder:text-outline disabled:opacity-60"
                   />
-                  <div className="mt-1 flex items-center justify-between border-t border-outline-variant/40 pt-2">
-                    <span className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-xs text-on-surface-variant">
-                      <MaterialIcon name="sparkles" size={18} className="text-secondary" />
-                      <span className="hidden sm:inline">Genie suggestion ready</span>
-                    </span>
+                  <div className="mt-1 flex items-center justify-end border-t border-outline-variant/40 pt-2">
                     <div className="flex items-center gap-2">
                       <span className="hidden text-[11px] text-outline md:inline">
                         Press ↵
@@ -182,32 +177,9 @@ export function ChatPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto py-1">
-              <span className="flex flex-shrink-0 items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-secondary">
-                <MaterialIcon name="bolt" size={14} /> Sparks
-              </span>
-              {[
-                { label: '+ Add CSV export capability', tone: 'hover:border-primary/50' },
-                { label: '+ Connect to external API', tone: 'hover:border-secondary/50' },
-                { label: '+ Flag records over threshold', tone: 'hover:border-tertiary/50' },
-              ].map((spark) => (
-                <button
-                  key={spark.label}
-                  type="button"
-                  onClick={() => setDraft((current) => `${current} ${spark.label.slice(2)}`.trim())}
-                  className={cn(
-                    'flex-shrink-0 rounded-full border border-outline-variant/60 bg-surface-container-low px-3 py-1.5 text-xs font-medium text-on-surface-variant transition-all hover:bg-surface-container',
-                    spark.tone,
-                  )}
-                >
-                  {spark.label}
-                </button>
-              ))}
-            </div>
-
             {sendMessage.isError && (
               <p className="text-sm text-error">
-                The Genie could not respond. Please resend your message.
+                Alladin could not respond. Please resend your message.
               </p>
             )}
           </div>
@@ -242,7 +214,7 @@ function AssistantMessage({ content, time }: { content: string; time: string }) 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-xs font-bold tracking-wide text-primary">
-            Genie Architect <span className="text-secondary">✦</span>
+            Alladin <span className="text-secondary">✦</span>
           </span>
           <span className="text-[11px] text-outline">{time}</span>
         </div>
@@ -289,7 +261,7 @@ function TypingIndicator() {
         ))}
       </div>
       <span className="text-xs font-medium italic text-on-surface-variant">
-        Genie is weaving requirements into PoC schema…
+        Alladin is weaving requirements into PoC schema…
       </span>
     </div>
   )
