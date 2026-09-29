@@ -10,7 +10,7 @@ interface ErrorStateProps {
 
 export function ErrorState({
   title = 'Something went wrong',
-  message = 'The Genie could not complete your request. Please try again.',
+  message = 'Alladin could not complete your request. Please try again.',
   onRetry,
   className,
 }: ErrorStateProps) {

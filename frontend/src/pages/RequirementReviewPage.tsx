@@ -305,7 +305,7 @@ export function RequirementReviewPage() {
                 <span className="relative z-10 flex items-center gap-2">
                   <span>
                     {startGeneration.isPending
-                      ? 'Conjuring Genie Agents…'
+                      ? 'Conjuring Alladin Agents…'
                       : 'Confirm & Build PoC'}
                   </span>
                   <MaterialIcon

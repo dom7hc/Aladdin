@@ -267,7 +267,7 @@ export function HomePage() {
               </p>
               <p className="text-sm text-on-surface-variant">
                 {(projectsQuery.data ?? []).length === 0
-                  ? 'Describe an idea above and the Genie will start building.'
+                  ? 'Describe an idea above and Alladin will start building.'
                   : 'Try a different search term or status filter.'}
               </p>
             </div>

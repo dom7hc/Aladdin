@@ -20,7 +20,7 @@ export const STATUS_META: Record<ProjectStatusValue, StatusMeta> = {
     label: 'Gathering Requirements',
     tone: 'secondary',
     headline: 'Gathering requirements',
-    description: 'Chat with the Genie Architect to shape your PoC spec.',
+    description: 'Chat with Alladin to shape your PoC spec.',
   },
   REQUIREMENT_READY: {
     label: 'Ready to Build',
