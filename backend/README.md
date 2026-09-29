@@ -103,6 +103,27 @@ export the variables in the shell, or set them in the VM's
   budget on reasoning and return zero content, so the structured agents run
   with thinking disabled
 
+## Preview deployment (generated PoC as containers)
+
+`POST /api/projects/{id}/preview` builds the **generated PoC itself** into
+Docker images and runs it as an isolated stack (PoC backend + PoC frontend +
+its own MongoDB) via the workspace's `deploy/` directory (shipped by the
+template, so the ZIP is self-hostable too). Poll `GET .../preview` for
+`none|building|running|failed` plus the published `port`/`url`;
+`DELETE .../preview` tears the stack down.
+
+- Requires the Docker socket to be available to the backend. The local stack
+  (`docker-compose.yml`) mounts it and overrides the container user; the
+  deployed VM stack does **not** mount it yet, so preview returns `409` there
+  until the CI/CD owner decides on socket access.
+- The preview frontend Dockerfile overwrites the generated
+  `vite.config.ts`/`tsconfig.json` with canonical ones from
+  `templates/default-poc/deploy/frontend/`, so builds are deterministic even
+  when the AI omits them.
+- Ports: `PREVIEW_PORT_BASE`..`+PREVIEW_PORT_RANGE` (defaults `8200`..`8249`).
+- Config: `PREVIEW_HEALTH_HOST` (default `host.docker.internal`),
+  `PREVIEW_HEALTH_TIMEOUT_SECONDS` (default `90`).
+
 ## Build/test runner
 
 Implements Backend Plan §10. The tester validates each generated PoC with an

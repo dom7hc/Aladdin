@@ -144,6 +144,14 @@ class GenerateResponse(CamelModel):
     status: str
 
 
+class PreviewResponse(CamelModel):
+    status: str  # none | building | running | failed | unhealthy
+    port: int | None = None
+    url: str | None = None
+    message: str | None = None
+    updated_at: str | None = None
+
+
 class ArtifactResponse(CamelModel):
     type: str
     version: int

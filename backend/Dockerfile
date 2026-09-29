@@ -8,6 +8,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Docker CLI + compose plugin: the preview feature builds and runs generated
+# PoCs against the host daemon through the mounted /var/run/docker.sock.
+# Without the socket the preview endpoints degrade to a clear 503/409.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg \
+       | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" \
+       > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-cli docker-compose-plugin \
+    && apt-get purge -y gnupg \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dependencies first so application edits do not invalidate the layer.
 COPY requirements.txt ./
 RUN python -m pip install --no-cache-dir --requirement requirements.txt
@@ -20,7 +37,9 @@ COPY templates ./templates
 ENV GENERATED_DIR=/var/lib/aladdin/generated
 RUN mkdir -p "$GENERATED_DIR" \
     && useradd --create-home --uid 10001 aladdin \
-    && chown -R aladdin:aladdin /app "$GENERATED_DIR"
+    && chown -R aladdin:aladdin /app "$GENERATED_DIR" \
+    && groupadd --gid 999 docker-host \
+    && usermod -aG docker-host aladdin
 
 USER aladdin
 
