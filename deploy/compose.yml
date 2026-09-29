@@ -70,10 +70,6 @@ services:
     # silently mismatched this VM (image 999 vs host 114).
     group_add:
       - "${DOCKER_GID:-114}"
-    # PREVIEW_HEALTH_HOST defaults to host.docker.internal, which does not
-    # resolve on Linux without this.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
       interval: 10s
