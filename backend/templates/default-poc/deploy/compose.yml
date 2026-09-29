@@ -7,8 +7,13 @@ services:
     build:
       context: ..
       dockerfile: deploy/frontend.Dockerfile
+    # Loopback only: previews are reached through the platform's reverse
+    # proxy, which supplies TLS and the access gate. Publishing on all
+    # interfaces would expose generated code directly, ungated.
     ports:
-      - "${POC_PORT:?POC_PORT is required}:80"
+      - "127.0.0.1:${POC_PORT:?POC_PORT is required}:80"
+    mem_limit: 256m
+    cpus: 0.5
     depends_on:
       poc-backend:
         condition: service_healthy
@@ -24,8 +29,13 @@ services:
     depends_on:
       poc-mongo:
         condition: service_healthy
+    mem_limit: 512m
+    cpus: 1.0
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1"]
+      # sys.exit(0 if ... else 1), not sys.exit(0) if ... else 1: the latter
+      # evaluates to 1 without exiting when the status is not 200, so a PoC
+      # serving errors reported itself healthy.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -34,6 +44,9 @@ services:
 
   poc-mongo:
     image: mongo:7
+    # The heaviest part of a preview; six concurrent slots means six of these.
+    mem_limit: 512m
+    cpus: 0.5
     volumes:
       - poc-mongo-data:/data/db
     healthcheck:

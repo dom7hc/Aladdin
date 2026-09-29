@@ -50,10 +50,30 @@ services:
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
       LLM_THINKING: ${LLM_THINKING:-disabled}
+      # Preview slots must agree with the site blocks in caddy/Caddyfile:
+      # slot N is published on loopback 8200+N and served on 9000+N.
+      PREVIEW_SLOTS: ${PREVIEW_SLOTS:-6}
+      PREVIEW_PORT_BASE: ${PREVIEW_PORT_BASE:-8200}
+      PREVIEW_PUBLIC_PORT_BASE: ${PREVIEW_PUBLIC_PORT_BASE:-9000}
+      PREVIEW_TTL_SECONDS: ${PREVIEW_TTL_SECONDS:-3600}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set in runtime.env}
+    # Lets the backend drive the host Docker daemon to build and run generated
+    # PoCs. This is root-equivalent on the host, which is why the site sits
+    # behind the access gate in caddy/Caddyfile.
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       # Generated PoC source exists only on disk and is not mirrored into
       # Mongo, so losing it would leave READY projects with broken downloads.
       - generated:/var/lib/aladdin/generated
+    # The socket is owned by the host's docker group. Taking the gid from the
+    # environment avoids baking it into the image, where a hardcoded value
+    # silently mismatched this VM (image 999 vs host 114).
+    group_add:
+      - "${DOCKER_GID:-114}"
+    # PREVIEW_HEALTH_HOST defaults to host.docker.internal, which does not
+    # resolve on Linux without this.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
       interval: 10s
