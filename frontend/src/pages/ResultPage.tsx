@@ -127,14 +127,11 @@ export function ResultPage() {
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-on-surface">{project.name}</h2>
-                  <span className="text-xs text-on-surface-variant">
-                    React + FastAPI + PostgreSQL sandbox
-                  </span>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/60 bg-surface-container-highest/80 px-2.5 py-1 font-mono text-xs font-medium text-on-surface-variant">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                v1.0 • Active Sandbox
+                Active Sandbox
               </span>
             </div>
 
@@ -180,6 +177,9 @@ export function ResultPage() {
                 className="px-4 py-2 text-xs"
               >
                 Download Project
+              </Button>
+              <Button variant="secondary" icon="slideshow" className="px-4 py-2 text-xs">
+                Generate PowerPoint
               </Button>
               <Button
                 variant="ghost"
