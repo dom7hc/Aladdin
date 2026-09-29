@@ -12,8 +12,13 @@ services:
     network_mode: host
     # Holds SITE_PASSWORD_HASH for the access gate. Root-owned on the VM and
     # never committed, like the environments' runtime.env.
+    #
+    # format: raw is required, not cosmetic. A bcrypt hash is full of '$'
+    # ($2a$14$...), and Compose interpolates env_file values by default, which
+    # silently truncated the hash to 6 characters and made every login fail.
     env_file:
-      - /opt/aladdin/proxy.env
+      - path: /opt/aladdin/proxy.env
+        format: raw
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates live here. This volume must survive restarts, or every
