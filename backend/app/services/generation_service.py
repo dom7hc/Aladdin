@@ -88,7 +88,16 @@ class PocGenerationService:
             )
             return
         await self.repo.push_artifact(
-            project_id, "TEST_RESULT", dumps_json({"status": test.status, "summary": test.summary})
+            project_id,
+            "TEST_RESULT",
+            dumps_json(
+                {
+                    "status": test.status,
+                    "category": test.category,
+                    "summary": test.summary,
+                    "commands": test.commands,
+                }
+            ),
         )
 
         await self._set_step(project_id, "tester", "COMPLETED")

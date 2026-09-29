@@ -70,6 +70,38 @@ without touching orchestration or APIs.
 Repair loop: reviewer/tester failure → developer fix → re-check, max
 `MAX_REPAIR_ATTEMPTS` (default 3), attempt count persisted on the project.
 
+## Build/test runner
+
+Implements Backend Plan §10. The tester validates each generated PoC with an
+ordered battery and records one normalized step per command
+(`{step, status: PASSED|FAILED|SKIPPED, reason, category, result}`); the run
+stops at the first failure and the `TEST_RESULT` artifact content JSON carries
+`status`, `category`, `summary` and the full `commands` list.
+
+| Order | Step | Command | Default |
+|---|---|---|---|
+| 1 | `pipInstall` | `python -m pip install -r requirements.txt` | off |
+| 2 | `compile` | `python -m compileall -q .` | on |
+| 3 | `pytest` | `python -m pytest -q -p no:cacheprovider .` | on |
+| 4 | `npmInstall` | `npm install --no-audit --no-fund` | off |
+| 5 | `npmBuild` | `npm run build` | off |
+
+Failure categories: `MISSING_FILES`, `DEPENDENCY_INSTALL`, `COMPILE_ERROR`,
+`TEST_FAILURE`, `BUILD_ERROR`, `TOOL_UNAVAILABLE`.
+
+Environment flags (defaults keep the pipeline hermetic — no network, no
+Node.js required; see `.env.example`):
+
+- `TESTER_RUN_PIP_INSTALL` (default `false`) — opt-in: it mutates the host
+  environment.
+- `TESTER_RUN_PYTEST` (default `true`) — runs the generated backend's pytest
+  suite (shipped in `templates/default-poc/backend/tests/`). Skipped with a
+  recorded reason when pytest is not importable (e.g. the slim deployment
+  image).
+- `TESTER_RUN_NPM_BUILD` (default `false`) — opt-in frontend build; requires
+  Node.js on the host. When enabled but `npm` is missing, the tester fails
+  with `TOOL_UNAVAILABLE`.
+
 ## Notes
 
 - Generated workspaces live in `backend/generated/` (gitignored); templates in `backend/templates/default-poc/`.

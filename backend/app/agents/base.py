@@ -40,6 +40,8 @@ class TestResult:
     files: list[str]
     summary: str
     suggested_fix: str | None = None
+    # Normalized per-step records from the build/test runner (Backend Plan §10).
+    commands: list[dict[str, Any]] = field(default_factory=list)
 
 
 class RequirementAgent(ABC):

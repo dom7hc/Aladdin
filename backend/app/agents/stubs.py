@@ -7,6 +7,7 @@ Real agents (AI Developer Plan) drop in behind the same interfaces.
 
 from typing import Any
 
+from app import config
 from app.agents.base import (
     ArchitectAgent,
     DeveloperAgent,
@@ -46,6 +47,14 @@ DEVELOPER_FILES = {
 }
 
 REVIEW_PASS = ReviewResult(status="PASS", issues=[])
+
+SUGGESTED_FIX_BY_STEP = {
+    "DEPENDENCY_INSTALL": "Re-run pip install for the generated backend and inspect requirements.txt.",
+    "COMPILE_ERROR": "Fix Python syntax errors in generated backend.",
+    "TEST_FAILURE": "Fix the failing tests in the generated backend.",
+    "BUILD_ERROR": "Fix the frontend build errors reported by npm.",
+    "TOOL_UNAVAILABLE": "Install the missing tool or disable the optional check.",
+}
 
 
 class StubRequirementAgent(RequirementAgent):
@@ -133,18 +142,37 @@ class StubTesterAgent(TesterAgent):
                 summary=f"Missing generated files: {', '.join(missing)}",
                 suggested_fix="Re-run the developer step.",
             )
-        result = await runner.compile_python(str(ws.source_dir(project_id) / "backend"))
-        if result["exitCode"] != 0:
-            return TestResult(
-                status="FAILED",
-                category="COMPILE_ERROR",
-                files=[],
-                summary=result["stderr"] or "compileall failed",
-                suggested_fix="Fix Python syntax errors in generated backend.",
-            )
-        return TestResult(
-            status="PASSED",
-            category=None,
-            files=[],
-            summary="Template files present and backend compiles.",
+        steps = await runner.run_test_battery(
+            str(ws.source_dir(project_id)),
+            run_pip_install=config.TESTER_RUN_PIP_INSTALL,
+            run_pytest=config.TESTER_RUN_PYTEST,
+            run_npm_build=config.TESTER_RUN_NPM_BUILD,
         )
+        return _test_result_from_steps(steps)
+
+
+def _test_result_from_steps(steps: list[dict[str, Any]]) -> TestResult:
+    failure = next((step for step in steps if step["status"] == "FAILED"), None)
+    if failure is not None:
+        result = failure.get("result") or {}
+        detail = (
+            result.get("stderr")
+            or result.get("stdout")
+            or failure.get("reason")
+            or "build/test step failed"
+        )
+        category = failure["category"]
+        return TestResult(
+            status="FAILED",
+            category=category,
+            files=[],
+            summary=detail[:2000],
+            suggested_fix=SUGGESTED_FIX_BY_STEP[category],
+            commands=steps,
+        )
+    passed = "Template files present, backend compiles"
+    if any(step["step"] == "pytest" and step["status"] == "PASSED" for step in steps):
+        passed += " and generated tests pass"
+    return TestResult(
+        status="PASSED", category=None, files=[], summary=passed + ".", commands=steps
+    )
