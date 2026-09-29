@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..900&amp;display=swap" rel="stylesheet"/>
+<style>
+  @layer base {
+    html, body { margin: 0; padding: 0; }
+    body { overscroll-behavior: none; }
+    main > :first-child { margin-top: 0 !important; }
+    main > :last-child { margin-bottom: 0 !important; }
+  }
+  ::-webkit-scrollbar { display: none; }
+</style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          "outline": "#859491",
+          "primary-fixed": "#6af8eb",
+          "on-tertiary-fixed": "#25005a",
+          "on-primary-fixed-variant": "#00504a",
+          "on-tertiary-fixed-variant": "#5a00c6",
+          "inverse-primary": "#006a63",
+          "on-secondary": "#3f2e00",
+          "on-surface-variant": "#bbcac7",
+          "on-tertiary": "#3f008e",
+          "secondary-fixed-dim": "#f7be1d",
+          "on-secondary-fixed-variant": "#5a4300",
+          "secondary-fixed": "#ffdf9a",
+          "error": "#ffb4ab",
+          "on-background": "#e1e0fa",
+          "tertiary-fixed-dim": "#d2bbff",
+          "inverse-surface": "#e1e0fa",
+          "surface-container-lowest": "#0b0c1e",
+          "surface-tint": "#47dbcf",
+          "surface-container-highest": "#323347",
+          "on-secondary-fixed": "#251a00",
+          "surface-dim": "#111224",
+          "on-error-container": "#ffdad6",
+          "background": "#0b0c1e",
+          "surface": "#111224",
+          "outline-variant": "#3c4947",
+          "inverse-on-surface": "#2e2f42",
+          "error-container": "#93000a",
+          "tertiary-fixed": "#eaddff",
+          "surface-container-high": "#27283c",
+          "on-secondary-container": "#5b4400",
+          "surface-container-low": "#191a2c",
+          "on-primary": "#003733",
+          "on-primary-container": "#004742",
+          "primary-container": "#0dbeb2",
+          "secondary-container": "#e4ae00",
+          "secondary": "#ffca45",
+          "on-error": "#690005",
+          "tertiary": "#d2bbff",
+          "on-tertiary-container": "#5000b1",
+          "tertiary-container": "#ba98ff",
+          "surface-bright": "#37374c",
+          "on-surface": "#e1e0fa",
+          "primary": "#47dbcf",
+          "surface-container": "#1d1e31",
+          "surface-variant": "#323347",
+          "primary-fixed-dim": "#47dbcf",
+          "on-primary-fixed": "#00201d"
+        },
+        borderRadius: {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "2xl": "1rem",
+          "full": "9999px"
+        },
+        spacing: {
+          "space-xl": "2rem",
+          "space-sm": "0.5rem",
+          "margin": "2rem",
+          "space-lg": "1.5rem",
+          "gutter-sm": "1rem",
+          "space-md": "1rem",
+          "gutter": "1.5rem",
+          "margin-lg": "3rem",
+          "gutter-lg": "2rem",
+          "space-xs": "0.25rem",
+          "margin-sm": "1rem"
+        },
+        fontFamily: {
+          sans: ["Plus Jakarta Sans", "sans-serif"],
+          "headline-md": ["Plus Jakarta Sans"],
+          "headline-xl": ["Plus Jakarta Sans"],
+          "headline-sm": ["Plus Jakarta Sans"],
+          "body-sm": ["Plus Jakarta Sans"],
+          "body-lg": ["Plus Jakarta Sans"],
+          "body-md": ["Plus Jakarta Sans"],
+          "headline-lg": ["Plus Jakarta Sans"],
+          "label-sm": ["Plus Jakarta Sans"],
+          "label-lg": ["Plus Jakarta Sans"],
+          "label-md": ["Plus Jakarta Sans"]
+        }
+      }
+    }
+  };
+</script>
+</head>
+<body class="bg-[#0b0c1e] text-on-surface font-sans antialiased min-h-screen relative selection:bg-primary/20 selection:text-primary">
+<!-- Subtle Arabian Night Stars & Aura Ambient Background -->
+<div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+<div class="absolute -top-40 left-1/4 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[140px]"></div>
+<div class="absolute top-1/3 -right-20 w-[500px] h-[500px] bg-secondary/10 rounded-full blur-[150px]"></div>
+<div class="absolute bottom-10 left-1/3 w-[450px] h-[450px] bg-[#6366f1]/10 rounded-full blur-[130px]"></div>
+</div>
+<!-- Header -->
+<header class="fixed top-0 left-0 right-0 h-16 z-50 bg-[#111224]/85 backdrop-blur-md border-b border-[#27283c]/80">
+<div class="h-full max-w-7xl mx-auto px-gutter flex items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-md">
+<a class="flex items-center gap-2 group" data-path="projects" href="#">
+<div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#006a63] via-[#0dbeb2] to-[#ffca45] flex items-center justify-center text-surface shadow-[0_0_15px_rgba(71,219,207,0.4)] group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[20px] text-[#00201d]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<div class="flex items-baseline gap-1">
+<span class="font-bold text-xl tracking-tight text-white group-hover:text-primary transition-colors">Aladdin</span>
+<span class="text-[10px] font-semibold tracking-widest uppercase text-secondary">Studio</span>
+</div>
+</a>
+<div class="hidden sm:flex items-center gap-space-xs pl-space-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-outline-variant">chevron_right</span>
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#191a2c] border border-[#2b2c4e] text-on-surface text-xs font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+<span>Autonomous CRM PoC</span>
+</div>
+</div>
+</div>
+<nav class="hidden md:flex items-center gap-space-lg">
+<a aria-current="page" class="text-primary font-medium text-sm flex items-center gap-1.5 px-2 py-1 relative after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:bg-primary after:rounded-full" data-path="projects" href="#">
+<span>Projects</span>
+</a>
+</nav>
+<div class="flex items-center gap-space-sm">
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#0dbeb2] text-[#00201d] font-semibold text-xs tracking-wide shadow-[0_0_15px_rgba(13,190,178,0.35)] hover:bg-primary hover:shadow-[0_0_20px_rgba(71,219,207,0.5)] transition-all" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span class="hidden sm:inline">New PoC</span>
+</button>
+<button aria-label="Notifications" class="w-9 h-9 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-[#1d1e31] hover:text-white transition-colors relative border border-[#27283c]" type="button">
+<span class="material-symbols-outlined text-[19px]">notifications</span>
+<span class="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-secondary shadow-[0_0_6px_#ffca45]"></span>
+</button>
+<div class="flex items-center gap-1 pl-space-xs">
+<div class="p-0.5 rounded-full bg-gradient-to-tr from-primary to-secondary shadow-[0_0_10px_rgba(71,219,207,0.3)]">
+<img alt="Profile" class="w-7 h-7 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida/AEtjO1XmuBW6NqQxLw6tA9d5xxzF-nQb0RoxoaQU5guOdhITp1SxFYJvd21DX9-vDbuv8TJsONKTvvsa1vsHpvJRc2RyWWNq7TOp1GRgH_D5HP-HkIByAO7kMfa0HXoty_geAqkqaXM1MpK5Mi7ub0HAnjBx6L4dvce-soxhKCaVeV6_lC8usx687Zlls4sC8jPZRXsvKUH89p3TAc2OADdK_zrYUKpaV_RA5aSr2iILqlCZgetLBWkHbRnrw28H"/>
+</div>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant hidden sm:inline">expand_more</span>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Container -->
+<main class="w-full pt-16 relative z-10">
+<div class="max-w-7xl mx-auto px-gutter py-space-xl min-h-[calc(100vh-4rem)]">
+<div class="flex flex-col w-full">
+<section class="max-w-4xl mx-auto w-full pb-32">
+<!-- Top Stepper & Status Bar -->
+<div class="bg-[#16172e]/90 border border-[#2b2c4e] rounded-xl p-space-md shadow-[0_4px_24px_rgba(0,0,0,0.4)] mb-space-lg flex flex-col md:flex-row md:items-center justify-between gap-space-md backdrop-blur-md">
+<div class="flex items-center gap-space-sm">
+<span class="text-xs uppercase tracking-wider text-on-surface-variant font-medium">Project:</span>
+<span class="text-base font-bold text-white flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary shadow-[0_0_8px_#47dbcf]"></span>
+              Invoice Analyzer
+            </span>
+</div>
+<!-- Stepper Matrix -->
+<nav aria-label="Progress" class="flex items-center gap-1.5 sm:gap-2">
+<!-- 1. Chat (Completed) -->
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#191a2c] border border-primary/30 text-primary">
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-xs font-semibold">1. Chat</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline-variant">arrow_forward</span>
+<!-- 2. Review (Active Step) -->
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#0dbeb2] to-[#47dbcf] text-[#00201d] font-bold text-xs shadow-[0_0_14px_rgba(71,219,207,0.5)] border border-[#6af8eb]/50">
+<span class="w-1.5 h-1.5 rounded-full bg-[#00201d] animate-ping"></span>
+<span>2. Review</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline-variant">arrow_forward</span>
+<!-- 3. Build -->
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111224] border border-[#27283c] text-on-surface-variant/60">
+<span class="text-xs">3. Build</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline-variant opacity-40">arrow_forward</span>
+<!-- 4. Working PoC -->
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#111224] border border-[#27283c] text-on-surface-variant/60">
+<span class="text-xs">4. Working PoC</span>
+</div>
+</nav>
+<!-- Status Badge -->
+<div class="flex items-center self-start md:self-auto">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary/15 border border-secondary/40 text-secondary text-xs font-bold tracking-wider shadow-[0_0_12px_rgba(255,202,69,0.25)]">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+              READY TO BUILD
+            </span>
+</div>
+</div>
+<!-- Editorial Header Area -->
+<header class="mb-space-xl">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#191a2c] border border-primary/30 text-primary text-xs font-semibold uppercase tracking-wider mb-space-sm shadow-[0_0_12px_rgba(71,219,207,0.15)]">
+<span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+            Specification Verification
+          </div>
+<h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+            Review your <span class="bg-gradient-to-r from-primary via-[#6af8eb] to-secondary bg-clip-text text-transparent">PoC Blueprint</span>
+</h1>
+<p class="text-base text-on-surface-variant mt-2 max-w-2xl leading-relaxed">
+            Make sure everything looks right before we start building. Our AI genie agents will use this exact blueprint to construct runtime containers, interfaces, and heuristics.
+          </p>
+</header>
+<!-- Structural Cards Composition -->
+<div class="flex flex-col gap-space-lg">
+<!-- Card 1: Overview Card -->
+<article class="bg-[#16172e] border border-[#2b2c4e] rounded-xl p-space-xl shadow-[0_4px_20px_rgba(0,0,0,0.3)] relative overflow-hidden group hover:border-primary/40 transition-all">
+<div class="absolute top-0 right-0 w-44 h-44 bg-gradient-to-bl from-primary/10 via-secondary/5 to-transparent rounded-full blur-3xl pointer-events-none -mr-10 -mt-10"></div>
+<div class="flex items-center justify-between pb-space-md mb-space-md border-b border-[#27283c]">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-[#191a2c] border border-primary/30 flex items-center justify-center text-primary shadow-[0_0_10px_rgba(71,219,207,0.2)]">
+<span class="material-symbols-outlined text-[20px]">description</span>
+</div>
+<div>
+<span class="text-[11px] font-bold uppercase tracking-widest text-secondary">Core Spec</span>
+<h2 class="text-lg font-bold text-white">Architectural Overview</h2>
+</div>
+</div>
+<button aria-label="Edit Overview" class="text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-[#191a2c] border border-[#27283c]" type="button">
+<span class="material-symbols-outlined text-[15px]">edit</span>
+                Edit
+              </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+<div class="bg-[#111224] border border-[#27283c] rounded-lg p-space-md flex flex-col justify-between">
+<div>
+<span class="text-[11px] font-bold uppercase tracking-wider text-secondary block mb-1">Target Application</span>
+<p class="text-lg font-bold text-white flex items-center gap-2">
+<span>Invoice Analyzer</span>
+<span class="text-xs px-2 py-0.5 rounded bg-primary/15 text-primary border border-primary/30">PoC Scope</span>
+</p>
+</div>
+<div class="mt-space-md pt-space-xs border-t border-[#1d1e31]">
+<span class="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant block mb-1">Target Persona</span>
+<p class="text-sm text-on-surface leading-relaxed">Finance &amp; accounting operations team handling vendor bills and disbursements.</p>
+</div>
+</div>
+<div class="flex flex-col gap-space-md">
+<div>
+<span class="text-[11px] font-bold uppercase tracking-wider text-secondary block mb-1">Identified Operational Bottleneck</span>
+<p class="text-sm text-on-surface leading-relaxed bg-[#111224] p-3 rounded-lg border border-[#27283c]">
+                    Manual invoice review is slow, error-prone, and prone to costly duplicate payments across multiple email inboxes and paper trails.
+                  </p>
+</div>
+<div>
+<span class="text-[11px] font-bold uppercase tracking-wider text-primary block mb-1">Target Outcome</span>
+<div class="bg-gradient-to-r from-[#191a2c] to-[#16172e] border border-primary/30 rounded-lg p-3 text-on-surface text-sm flex items-start gap-2.5 shadow-[0_0_12px_rgba(71,219,207,0.1)]">
+<span class="material-symbols-outlined text-primary text-[20px] shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="text-white">Automatically analyze invoices, extract tabular entities, and identify potential anomalies with zero code required.</span>
+</div>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 2: Core Features Card -->
+<article class="bg-[#16172e] border border-[#2b2c4e] rounded-xl p-space-xl shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:border-primary/40 transition-all">
+<div class="flex items-center justify-between pb-space-md mb-space-md border-b border-[#27283c]">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-[#191a2c] border border-primary/30 flex items-center justify-center text-primary shadow-[0_0_10px_rgba(71,219,207,0.2)]">
+<span class="material-symbols-outlined text-[20px]">checklist_rtl</span>
+</div>
+<div>
+<span class="text-[11px] font-bold uppercase tracking-widest text-secondary">Functional Capabilities</span>
+<h2 class="text-lg font-bold text-white">Validated Scope Matrix</h2>
+</div>
+</div>
+<span class="px-3 py-1 rounded-full bg-[#191a2c] border border-primary/30 text-primary text-xs font-semibold shadow-[0_0_8px_rgba(71,219,207,0.15)]">4 Capabilities Defined</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md">
+<div class="bg-[#111224] border border-[#27283c] hover:border-primary/30 rounded-lg p-space-md flex items-start gap-space-sm transition-colors">
+<div class="w-6 h-6 rounded-full bg-primary/15 border border-primary/40 text-primary flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_6px_rgba(71,219,207,0.3)]">
+<span class="material-symbols-outlined text-[15px] font-bold">check</span>
+</div>
+<div class="min-w-0">
+<p class="text-sm font-bold text-white mb-0.5">Invoice Ingestion</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Upload PDF invoices &amp; scans with full multi-page parsing support.</p>
+</div>
+</div>
+<div class="bg-[#111224] border border-[#27283c] hover:border-primary/30 rounded-lg p-space-md flex items-start gap-space-sm transition-colors">
+<div class="w-6 h-6 rounded-full bg-primary/15 border border-primary/40 text-primary flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_6px_rgba(71,219,207,0.3)]">
+<span class="material-symbols-outlined text-[15px] font-bold">check</span>
+</div>
+<div class="min-w-0">
+<p class="text-sm font-bold text-white mb-0.5">Key Entity Extraction</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Extract invoice numbers, vendors, due dates, line items, and totals automatically.</p>
+</div>
+</div>
+<div class="bg-[#111224] border border-[#27283c] hover:border-primary/30 rounded-lg p-space-md flex items-start gap-space-sm transition-colors">
+<div class="w-6 h-6 rounded-full bg-primary/15 border border-primary/40 text-primary flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_6px_rgba(71,219,207,0.3)]">
+<span class="material-symbols-outlined text-[15px] font-bold">check</span>
+</div>
+<div class="min-w-0">
+<p class="text-sm font-bold text-white mb-0.5">Anomaly Detection</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Flag duplicate invoices and pricing anomalies against historical thresholds.</p>
+</div>
+</div>
+<div class="bg-[#111224] border border-[#27283c] hover:border-primary/30 rounded-lg p-space-md flex items-start gap-space-sm transition-colors">
+<div class="w-6 h-6 rounded-full bg-primary/15 border border-primary/40 text-primary flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_6px_rgba(71,219,207,0.3)]">
+<span class="material-symbols-outlined text-[15px] font-bold">check</span>
+</div>
+<div class="min-w-0">
+<p class="text-sm font-bold text-white mb-0.5">Human-in-the-Loop Review</p>
+<p class="text-xs text-on-surface-variant leading-relaxed">Interactive approval dashboard with actionable anomaly explanations and overrides.</p>
+</div>
+</div>
+</div>
+<!-- Inline Visual Proof: Flow Spark -->
+<div class="mt-space-md pt-space-md bg-[#111224] border border-[#27283c] rounded-lg p-space-md flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">hub</span>
+</div>
+<div>
+<p class="text-sm font-bold text-white">Data Pipeline Orchestration</p>
+<p class="text-xs text-on-surface-variant">Asynchronous parallel inference with fallback local reconciliation</p>
+</div>
+</div>
+<div class="flex items-center gap-3 w-full md:w-auto justify-end">
+<span class="text-xs text-on-surface-variant">Pipeline readiness</span>
+<div class="w-28 h-2.5 rounded-full bg-[#191a2c] border border-[#27283c] overflow-hidden p-0.5">
+<div class="h-full bg-gradient-to-r from-primary to-secondary rounded-full shadow-[0_0_8px_#47dbcf]" style="width: 100%;"></div>
+</div>
+<span class="text-xs text-primary font-bold">100%</span>
+</div>
+</div>
+</article>
+<!-- Card 3: Data & Deliverable Card (3 Columns) -->
+<article class="bg-[#16172e] border border-[#2b2c4e] rounded-xl p-space-xl shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:border-primary/40 transition-all">
+<div class="flex items-center gap-3 mb-space-md pb-space-md border-b border-[#27283c]">
+<div class="w-9 h-9 rounded-lg bg-[#191a2c] border border-primary/30 flex items-center justify-center text-primary shadow-[0_0_10px_rgba(71,219,207,0.2)]">
+<span class="material-symbols-outlined text-[20px]">sync_alt</span>
+</div>
+<div>
+<span class="text-[11px] font-bold uppercase tracking-widest text-secondary">I/O Specification</span>
+<h2 class="text-lg font-bold text-white">Data Contracts &amp; Acceptance Criteria</h2>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+<!-- Col 1 -->
+<div class="bg-[#111224] border border-[#27283c] rounded-lg p-space-md flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-1.5 text-secondary mb-2">
+<span class="material-symbols-outlined text-[17px]">file_open</span>
+<span class="text-[11px] font-bold uppercase tracking-wider">System Inputs</span>
+</div>
+<p class="text-sm text-on-surface leading-relaxed">PDF invoices, multi-page image scans, and standard raw vendor receipts.</p>
+</div>
+<div class="mt-space-md pt-space-xs">
+<span class="inline-block px-2.5 py-0.5 rounded bg-[#191a2c] border border-[#27283c] text-on-surface-variant text-[11px] font-medium font-mono">MIME: pdf, png, jpeg</span>
+</div>
+</div>
+<!-- Col 2 -->
+<div class="bg-[#111224] border border-[#27283c] rounded-lg p-space-md flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-1.5 text-secondary mb-2">
+<span class="material-symbols-outlined text-[17px]">output</span>
+<span class="text-[11px] font-bold uppercase tracking-wider">System Outputs</span>
+</div>
+<p class="text-sm text-on-surface leading-relaxed">Structured data view, immediate anomaly alert flags, and clean CSV/JSON export channels.</p>
+</div>
+<div class="mt-space-md pt-space-xs">
+<span class="inline-block px-2.5 py-0.5 rounded bg-[#191a2c] border border-[#27283c] text-on-surface-variant text-[11px] font-medium font-mono">Schema: JSON-LD v1.2</span>
+</div>
+</div>
+<!-- Col 3 -->
+<div class="bg-gradient-to-b from-[#191a2c] to-[#111224] border border-primary/30 rounded-lg p-space-md flex flex-col justify-between shadow-[0_0_15px_rgba(71,219,207,0.1)]">
+<div>
+<div class="flex items-center gap-1.5 text-primary mb-2">
+<span class="material-symbols-outlined text-[17px]" style="font-variation-settings: 'FILL' 1;">timer</span>
+<span class="text-[11px] font-bold uppercase tracking-wider">Success Criteria</span>
+</div>
+<p class="text-sm text-white font-medium leading-relaxed">Finance users can upload an invoice and receive verified, actionable audit insights within 5 seconds.</p>
+</div>
+<div class="mt-space-md pt-space-xs flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[16px]">speed</span>
+<span class="text-xs font-bold font-mono tracking-tight shadow-[0_0_8px_rgba(71,219,207,0.3)]">&lt; 5000ms latency target</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Card 4: Build Estimates & Agent Allocation Card -->
+<article class="bg-[#16172e] border border-[#2b2c4e] rounded-xl p-space-xl shadow-[0_4px_20px_rgba(0,0,0,0.3)] hover:border-primary/40 transition-all">
+<div class="flex items-center justify-between pb-space-md mb-space-md border-b border-[#27283c]">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-[#00504a] to-[#0dbeb2] text-[#00201d] flex items-center justify-center shadow-[0_0_12px_rgba(13,190,178,0.4)]">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+</div>
+<div>
+<span class="text-[11px] font-bold uppercase tracking-widest text-secondary">Execution Fleet</span>
+<h2 class="text-lg font-bold text-white">Build Estimates &amp; Agent Allocation</h2>
+</div>
+</div>
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#191a2c] border border-secondary/30 text-secondary">
+<span class="material-symbols-outlined text-[16px] text-secondary">timelapse</span>
+<span class="text-xs font-bold">~2 minutes build</span>
+</div>
+</div>
+<!-- Agents Grid -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-space-sm mb-space-lg">
+<div class="p-space-sm rounded-lg bg-[#111224] border border-[#27283c] flex flex-col gap-1 hover:border-primary/30 transition-colors">
+<div class="w-7 h-7 rounded-md bg-[#191a2c] border border-primary/20 flex items-center justify-center text-primary mb-1">
+<span class="material-symbols-outlined text-[16px]">account_tree</span>
+</div>
+<span class="text-xs font-bold text-white">Schema Architect</span>
+<span class="text-[11px] text-on-surface-variant">Entity modeling</span>
+</div>
+<div class="p-space-sm rounded-lg bg-[#111224] border border-[#27283c] flex flex-col gap-1 hover:border-primary/30 transition-colors">
+<div class="w-7 h-7 rounded-md bg-[#191a2c] border border-primary/20 flex items-center justify-center text-primary mb-1">
+<span class="material-symbols-outlined text-[16px]">dashboard_customize</span>
+</div>
+<span class="text-xs font-bold text-white">Frontend Builder</span>
+<span class="text-[11px] text-on-surface-variant">UI &amp; layouts</span>
+</div>
+<div class="p-space-sm rounded-lg bg-[#111224] border border-[#27283c] flex flex-col gap-1 hover:border-primary/30 transition-colors">
+<div class="w-7 h-7 rounded-md bg-[#191a2c] border border-primary/20 flex items-center justify-center text-primary mb-1">
+<span class="material-symbols-outlined text-[16px]">psychology</span>
+</div>
+<span class="text-xs font-bold text-white">Anomaly Engine</span>
+<span class="text-[11px] text-on-surface-variant">Rule generation</span>
+</div>
+<div class="p-space-sm rounded-lg bg-[#111224] border border-[#27283c] flex flex-col gap-1 hover:border-primary/30 transition-colors">
+<div class="w-7 h-7 rounded-md bg-[#191a2c] border border-primary/20 flex items-center justify-center text-primary mb-1">
+<span class="material-symbols-outlined text-[16px]">rule</span>
+</div>
+<span class="text-xs font-bold text-white">QA Verification</span>
+<span class="text-[11px] text-on-surface-variant">End-to-end tests</span>
+</div>
+</div>
+<!-- Deliverable Bundles -->
+<div class="bg-[#111224] border border-[#27283c] rounded-lg p-space-md flex flex-col sm:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">package_2</span>
+</div>
+<div>
+<p class="text-xs font-bold text-white">Included Production Runtime</p>
+<p class="text-[11px] text-on-surface-variant">Live hosted URL, instant preview sandbox, downloadable source bundle</p>
+</div>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#191a2c] border border-[#2b2c4e] text-on-surface text-[11px] font-medium">
+<span class="material-symbols-outlined text-[14px] text-primary">cloud_done</span> SSL Live Host
+                </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#191a2c] border border-[#2b2c4e] text-on-surface text-[11px] font-medium">
+<span class="material-symbols-outlined text-[14px] text-secondary">terminal</span> Full Git Repo
+                </span>
+</div>
+</div>
+</article>
+</div>
+</section>
+<!-- Bottom Sticky Action Bar (Agrabah Midnight Glassmorphism) -->
+<aside aria-label="Action Toolbar" class="fixed bottom-0 left-0 right-0 z-40 bg-[#0b0c1e]/90 backdrop-blur-xl border-t border-[#27283c] shadow-[0_-8px_32px_rgba(0,0,0,0.6)] py-space-md px-gutter">
+<div class="max-w-4xl mx-auto flex items-center justify-between gap-space-md">
+<!-- Back Navigation -->
+<button class="inline-flex items-center gap-2 px-space-md py-2.5 rounded-lg bg-[#16172e] border border-[#2b2c4e] text-on-surface hover:text-white hover:border-primary/40 hover:bg-[#1d1e31] transition-all text-xs font-bold group" type="button">
+<span class="material-symbols-outlined text-[18px] transition-transform group-hover:-translate-x-1 text-primary">arrow_back</span>
+<span>Back to Chat</span>
+</button>
+<!-- Primary Action Trigger -->
+<div class="flex items-center gap-space-md">
+<span class="hidden sm:inline text-xs text-on-surface-variant font-medium flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[15px] text-secondary" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+              No engineering or coding needed
+            </span>
+<button class="relative group inline-flex items-center gap-2 px-space-lg py-3 rounded-xl bg-gradient-to-r from-[#f59e0b] via-[#ffca45] to-[#d97706] text-[#251a00] font-extrabold text-sm sm:text-base shadow-[0_0_24px_rgba(255,202,69,0.4)] hover:shadow-[0_0_35px_rgba(255,202,69,0.65)] hover:brightness-105 transition-all active:scale-[0.98] overflow-hidden" id="build-trigger" type="button">
+<span class="relative z-10 flex items-center gap-2">
+<span>Confirm &amp; Build PoC</span>
+<span class="material-symbols-outlined text-[20px] text-[#251a00] group-hover:rotate-12 transition-transform font-bold" style="font-variation-settings: 'FILL' 1;">bolt</span>
+</span>
+<div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
+</button>
+</div>
+</div>
+</aside>
+<!-- Interactive State Script -->
+<script>
+        document.getElementById('build-trigger')?.addEventListener('click', function() {
+          const btn = this;
+          btn.disabled = true;
+          btn.innerHTML = `
+            <span class="flex items-center gap-2">
+              <span class="w-4 h-4 border-2 border-[#251a00]/30 border-t-[#251a00] rounded-full animate-spin"></span>
+              <span>Conjuring Genie Agents...</span>
+            </span>
+          `;
+          setTimeout(() => {
+            btn.innerHTML = `
+              <span class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+                <span>Build Pipeline Initialized</span>
+              </span>
+            `;
+          }, 1400);
+        });
+      </script>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="w-full bg-[#0b0c1e] border-t border-[#27283c]/60 py-space-lg relative z-10">
+<div class="max-w-7xl mx-auto px-gutter flex flex-col sm:flex-row items-center justify-between gap-space-md text-xs text-on-surface-variant">
+<span>© 2025 Aladdin PoC Studio. All rights reserved.</span>
+<div class="flex items-center gap-space-md">
+<a class="hover:text-primary transition-colors" data-path="how-it-works" href="#">Documentation</a>
+<a class="hover:text-primary transition-colors" data-path="feedback" href="#">Changelog</a>
+<span class="text-outline-variant">•</span>
+<span class="text-secondary font-bold tracking-wider uppercase text-[11px] shadow-[0_0_8px_rgba(255,202,69,0.3)]">V2.4 AGRABAH READY</span>
+</div>
+</div>
+</footer>
+</body></html>

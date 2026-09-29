@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<meta content="web_standard" name="shell-type"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body { margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "on-tertiary-fixed": "#25005a",
+          "outline-variant": "#3c4947",
+          "error-container": "#93000a",
+          "on-background": "#e1e0fa",
+          "on-primary": "#003733",
+          "tertiary": "#d2bbff",
+          "on-tertiary-container": "#5000b1",
+          "inverse-primary": "#006a63",
+          "tertiary-fixed-dim": "#d2bbff",
+          "surface-container-low": "#191a2c",
+          "surface": "#111224",
+          "outline": "#859491",
+          "primary-container": "#0dbeb2",
+          "surface-tint": "#47dbcf",
+          "on-error": "#690005",
+          "on-surface-variant": "#bbcac7",
+          "secondary-fixed": "#ffdf9a",
+          "on-primary-fixed-variant": "#00504a",
+          "surface-container-high": "#27283c",
+          "on-secondary-fixed-variant": "#5a4300",
+          "primary-fixed": "#6af8eb",
+          "tertiary-fixed": "#eaddff",
+          "surface-container": "#1d1e31",
+          "inverse-on-surface": "#2e2f42",
+          "on-error-container": "#ffdad6",
+          "surface-bright": "#37374c",
+          "surface-dim": "#111224",
+          "on-primary-container": "#004742",
+          "on-secondary-container": "#5b4400",
+          "inverse-surface": "#e1e0fa",
+          "on-tertiary": "#3f008e",
+          "background": "#111224",
+          "primary": "#47dbcf",
+          "on-surface": "#e1e0fa",
+          "tertiary-container": "#ba98ff",
+          "secondary-fixed-dim": "#f7be1d",
+          "surface-variant": "#323347",
+          "on-secondary": "#3f2e00",
+          "error": "#ffb4ab",
+          "on-tertiary-fixed-variant": "#5a00c6",
+          "primary-fixed-dim": "#47dbcf",
+          "secondary-container": "#e4ae00",
+          "on-secondary-fixed": "#251a00",
+          "surface-container-lowest": "#0b0c1e",
+          "on-primary-fixed": "#00201d",
+          "surface-container-highest": "#323347",
+          "secondary": "#ffca45"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "9999px"
+        },
+        "spacing": {
+          "margin-sm": "1rem",
+          "space-lg": "1.5rem",
+          "space-xs": "0.25rem",
+          "space-md": "1rem",
+          "space-sm": "0.5rem",
+          "gutter-lg": "2rem",
+          "gutter": "1.5rem",
+          "space-xl": "2rem",
+          "margin-lg": "3rem",
+          "margin": "2rem",
+          "gutter-sm": "1rem"
+        },
+        "fontFamily": {
+          "headline-md": ["Plus Jakarta Sans"],
+          "headline-lg": ["Plus Jakarta Sans"],
+          "body-sm": ["Plus Jakarta Sans"],
+          "headline-xl": ["Plus Jakarta Sans"],
+          "label-sm": ["Plus Jakarta Sans"],
+          "label-lg": ["Plus Jakarta Sans"],
+          "label-md": ["Plus Jakarta Sans"],
+          "body-lg": ["Plus Jakarta Sans"],
+          "display-lg": ["Plus Jakarta Sans"],
+          "display-lg-mobile": ["Plus Jakarta Sans"],
+          "body-md": ["Plus Jakarta Sans"],
+          "headline-sm": ["Plus Jakarta Sans"],
+          "headline-xl-mobile": ["Plus Jakarta Sans"]
+        },
+        "fontSize": {
+          "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+          "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.015em", "fontWeight": "700" }],
+          "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+          "headline-xl": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+          "label-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+          "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+          "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+          "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+          "display-lg": ["56px", { "lineHeight": "64px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+          "display-lg-mobile": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+          "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+          "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+          "headline-xl-mobile": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700" }]
+        }
+      }
+    }
+  };
+</script>
+</head>
+<body class="bg-surface font-body-md text-on-surface antialiased min-h-screen flex flex-col justify-between selection:bg-primary/20 selection:text-primary">
+<!-- Interactive Toast Notification -->
+<div class="fixed bottom-6 right-6 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none flex items-center gap-2 bg-surface-container-highest text-on-surface border border-outline-variant px-4 py-2.5 rounded-xl shadow-2xl font-label-md text-sm" id="copy-toast">
+<span class="material-symbols-outlined text-[18px] text-primary">check_circle</span>
+<span>PoC link copied to clipboard</span>
+</div>
+<!-- Header -->
+<header class="fixed top-0 left-0 right-0 h-16 z-50 bg-[#111224]/85 backdrop-blur-md border-b border-outline-variant/40">
+<div class="h-full max-w-6xl mx-auto px-gutter flex items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-lg">
+<a class="flex items-center gap-2.5 group" data-path="projects" href="#">
+<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-secondary via-secondary-container to-primary flex items-center justify-center text-on-primary-fixed shadow-md shadow-secondary/20">
+<span class="material-symbols-outlined text-[19px] text-[#251a00]">auto_fix_high</span>
+</div>
+<span class="font-headline-sm text-[1.15rem] text-on-surface font-bold tracking-tight flex items-center gap-1.5">
+  Aladdin
+  <span class="material-symbols-outlined text-secondary text-[16px]">magic_button</span>
+</span>
+</a>
+<nav class="hidden md:flex items-center gap-space-md pl-4">
+<a class="text-primary font-semibold text-sm transition-colors hover:text-primary-fixed" data-path="projects" href="#">Projects</a>
+</nav>
+</div>
+<div class="flex items-center gap-space-md">
+<button class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-primary to-primary-container text-on-primary-container font-label-md text-label-md font-bold shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all" type="button">
+<span class="material-symbols-outlined text-[17px]">add</span>
+<span>New PoC</span>
+</button>
+<div class="flex items-center pl-1">
+<img alt="User avatar" class="w-8 h-8 rounded-full object-cover ring-2 ring-secondary/40 shadow-xs" src="https://lh3.googleusercontent.com/aida/AEtjO1UNFu922FgGz7sp4aTx7_ex-TMNBgOBHRIJzEnxhIGp10QC31hItdOEnACebKToR5YgoMkDUVuMVej-mi4Csyp7oqXbC2mFPCMI4NzPjKHXok-FsOZCNTDIc2Yaae_nl7Bz23AhKD-tGRH-RRmXh2ol3VfdnYXHx5NedP6iUOWv9yK4nKppSkN3c0lMGDYy1NEmI2e3PnMwVkwvIl2Gudj_BwqjXPRrvGwdoAEski0rhRMOdoYTXa_QQobO"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="w-full pt-16 flex-1 flex flex-col items-center">
+<div class="w-full max-w-3xl mx-auto px-gutter py-12 flex flex-col">
+<!-- Breadcrumb / Status Top Bar -->
+<div class="flex items-center justify-between py-2 mb-8 border-b border-outline-variant/40">
+<div class="flex items-center gap-2 text-sm">
+<a class="text-on-surface-variant hover:text-on-surface transition-colors inline-flex items-center gap-1" data-path="projects" href="#">
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+<span>Projects</span>
+</a>
+<span class="text-outline-variant">/</span>
+<span class="font-medium text-on-surface">Invoice Analyzer</span>
+</div>
+<div class="flex items-center gap-2.5">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 font-label-sm text-xs shadow-xs shadow-primary/20">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_#47dbcf]"></span>
+<span class="font-semibold text-primary">Ready</span>
+</span>
+<span class="text-xs text-on-surface-variant/80 hidden sm:inline">Updated just now</span>
+</div>
+</div>
+<!-- Hero Header -->
+<div class="text-left mb-8">
+<h1 class="font-headline-lg text-3xl sm:text-4xl font-bold tracking-tight mb-2 bg-gradient-to-r from-on-surface via-primary-fixed to-secondary bg-clip-text text-transparent">
+  Your PoC is ready!
+</h1>
+<p class="font-body-md text-on-surface-variant text-base leading-relaxed">
+  Your working prototype is live and deployed in an isolated sandbox. You can test and share it right now.
+</p>
+</div>
+<!-- Main Sandbox Deliverable Card -->
+<div class="w-full bg-surface-container-low border border-primary/20 hover:border-primary/30 transition-colors rounded-2xl p-6 sm:p-8 shadow-xl shadow-black/40 flex flex-col gap-6 relative overflow-hidden backdrop-blur-sm">
+<!-- Subtle magical background aura -->
+<div class="absolute -top-24 -right-24 w-52 h-52 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
+<div class="absolute -bottom-24 -left-24 w-52 h-52 bg-secondary/10 rounded-full blur-3xl pointer-events-none"></div>
+<!-- Card Header: Title & Version Badge -->
+<div class="flex items-center justify-between relative z-10">
+<div class="flex items-center gap-3.5">
+<div class="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 text-primary flex items-center justify-center shadow-inner">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+</div>
+<div>
+<h2 class="font-headline-sm text-base font-semibold text-on-surface">Invoice Analyzer</h2>
+<span class="text-xs text-on-surface-variant font-normal">Next.js + PyTorch OCR sandbox</span>
+</div>
+</div>
+<div>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container-highest/80 text-on-surface-variant text-xs font-mono font-medium border border-outline-variant/60 shadow-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_6px_#47dbcf]"></span>
+<span>v1.0 • Active Sandbox</span>
+</span>
+</div>
+</div>
+<!-- Primary Sandbox URL Box -->
+<div class="flex flex-col gap-2 relative z-10">
+<span class="font-label-sm text-xs font-semibold text-secondary uppercase tracking-wider flex items-center gap-1">
+<span class="material-symbols-outlined text-[13px]">sparkles</span>
+  Live Sandbox Endpoint
+</span>
+<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 sm:p-2 sm:pl-3.5 rounded-xl bg-surface-container-lowest border border-outline-variant/60 focus-within:border-primary/50 transition-colors">
+<div class="flex items-center gap-2.5 min-w-0 flex-1">
+<span class="material-symbols-outlined text-[18px] text-primary">captive_portal</span>
+<span class="font-mono text-sm text-primary-fixed font-medium truncate select-all" id="sandbox-url">https://poc.example.com/invoice-analyzer</span>
+</div>
+<div class="flex items-center gap-2 shrink-0">
+<button class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-bright border border-outline-variant/60 text-on-surface text-xs font-medium transition-all shadow-xs" id="copy-btn" type="button">
+<span class="material-symbols-outlined text-[15px] text-on-surface-variant">content_copy</span>
+<span id="copy-btn-text">Copy Link</span>
+</button>
+<a class="inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-fixed text-on-primary font-semibold text-xs shadow-md shadow-primary/25 transition-all group active:scale-95" href="https://poc.example.com/invoice-analyzer" rel="noopener noreferrer" target="_blank">
+<span>Open PoC</span>
+<span class="material-symbols-outlined text-[15px] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">open_in_new</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<!-- Minimal Next Actions Bar -->
+<div class="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-1">
+<button class="text-xs font-medium text-on-surface-variant hover:text-secondary transition-colors flex items-center gap-1.5 order-2 sm:order-1" onclick="document.getElementById('copy-btn').click();" type="button">
+<span class="material-symbols-outlined text-[16px]">share</span>
+<span>Share with team</span>
+</button>
+<div class="flex items-center gap-3 w-full sm:w-auto justify-end order-1 sm:order-2">
+<a class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface transition-all text-xs font-medium border border-outline-variant/60 shadow-xs hover:border-secondary/40 group" data-path="projects" href="#">
+<span class="material-symbols-outlined text-[15px] text-secondary group-hover:rotate-12 transition-transform">auto_awesome</span>
+<span>Ask AI to refine PoC</span>
+</a>
+</div>
+</div>
+</div>
+</main>
+<!-- Clean Footer -->
+<footer class="w-full border-t border-outline-variant/30 py-6 mt-12 bg-surface">
+<div class="max-w-6xl mx-auto px-gutter flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-on-surface-variant/80">
+<span>© 2025 Aladdin PoC Studio. All rights reserved.</span>
+<div class="flex items-center gap-5">
+<a class="hover:text-primary transition-colors" data-path="how-it-works" href="#">Documentation</a>
+<a class="hover:text-primary transition-colors" href="#">Privacy</a>
+</div>
+</div>
+</footer>
+<!-- Copy URL Interaction Script -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const copyBtn = document.getElementById('copy-btn');
+    const copyBtnText = document.getElementById('copy-btn-text');
+    const toast = document.getElementById('copy-toast');
+    const targetUrl = 'https://poc.example.com/invoice-analyzer';
+
+    if (copyBtn && toast) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(targetUrl).then(() => {
+          if (copyBtnText) copyBtnText.textContent = 'Copied!';
+          toast.classList.remove('translate-y-16', 'opacity-0');
+          toast.classList.add('translate-y-0', 'opacity-100');
+
+          setTimeout(() => {
+            if (copyBtnText) copyBtnText.textContent = 'Copy Link';
+            toast.classList.add('translate-y-16', 'opacity-0');
+            toast.classList.remove('translate-y-0', 'opacity-100');
+          }, 2400);
+        }).catch(() => {
+          if (copyBtnText) copyBtnText.textContent = 'Copied!';
+          setTimeout(() => { if (copyBtnText) copyBtnText.textContent = 'Copy Link'; }, 2000);
+        });
+      });
+    }
+  });
+</script>
+</body></html>
