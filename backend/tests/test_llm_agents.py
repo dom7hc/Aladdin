@@ -26,6 +26,17 @@ from app.schemas.project import empty_requirements
 from app.workspace import workspace as ws
 
 
+class FakeChoice:
+    def __init__(self, content, finish_reason="stop"):
+        self.message = SimpleNamespace(content=content)
+        self.finish_reason = finish_reason
+
+
+class FakeResponse:
+    def __init__(self, content, finish_reason="stop"):
+        self.choices = [FakeChoice(content, finish_reason)]
+
+
 class FakeCompletions:
     def __init__(self, responses):
         self.responses = list(responses)
@@ -36,7 +47,9 @@ class FakeCompletions:
         item = self.responses.pop(0)
         if isinstance(item, Exception):
             raise item
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=item))])
+        if isinstance(item, tuple):
+            return FakeResponse(*item)
+        return FakeResponse(item)
 
 
 class FakeClient:
@@ -49,6 +62,12 @@ def llm_workspace(tmp_path: Path, monkeypatch) -> str:
     """Hermetic generated workspace under tmp_path."""
     monkeypatch.setattr(ws, "GENERATED_DIR", str(tmp_path / "generated"))
     return "abcdef0123456789abcdef01"
+
+
+def _scaffold_frontend(project_id: str) -> None:
+    """Files an LLM developer run must add on top of the template."""
+    ws.write_file(project_id, "frontend/index.html", "<!doctype html>\n")
+    ws.write_file(project_id, "frontend/src/main.tsx", "import App from './App'\n")
 
 
 def test_deepseek_client_returns_content_and_sends_model():
@@ -73,6 +92,45 @@ def test_extract_json_tolerates_fences_prose_and_nested_strings():
         _extract_json("no json here")
     with pytest.raises(LLMError):
         _extract_json('{"open": ')
+
+
+def test_extract_json_tolerates_raw_newlines_in_strings():
+    raw = '{"files": [{"path": "a.py", "content": "line1\nline2\ttab"}]}'
+    assert _extract_json(raw)["files"][0]["content"] == "line1\nline2\ttab"
+
+
+def test_deepseek_client_reports_truncation():
+    client = DeepSeekClient(client=FakeClient(("partial json {", "length")))
+    with pytest.raises(LLMError, match="truncated"):
+        asyncio.run(client.complete("sys", "user"))
+
+
+def test_deepseek_client_disables_thinking_by_default():
+    client = DeepSeekClient(client=FakeClient("ok"))
+    asyncio.run(client.complete("sys", "user"))
+    call = client._client.chat.completions.calls[0]
+    assert call["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in call
+
+
+def test_deepseek_client_enables_thinking_with_effort():
+    client = DeepSeekClient(client=FakeClient("ok"), thinking="enabled", reasoning_effort="low")
+    asyncio.run(client.complete("sys", "user"))
+    call = client._client.chat.completions.calls[0]
+    assert call["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert call["reasoning_effort"] == "low"
+
+
+def test_deepseek_client_sends_reasoning_effort():
+    client = DeepSeekClient(client=FakeClient("ok"), thinking="enabled", reasoning_effort="high")
+    asyncio.run(client.complete("sys", "user"))
+    assert client._client.chat.completions.calls[0]["reasoning_effort"] == "high"
+
+
+def test_deepseek_client_omits_reasoning_effort_when_off():
+    client = DeepSeekClient(client=FakeClient("ok"), thinking="enabled", reasoning_effort="off")
+    asyncio.run(client.complete("sys", "user"))
+    assert "reasoning_effort" not in client._client.chat.completions.calls[0]
 
 
 async def test_requirement_agent_fills_missing_only_and_stays_deterministic():
@@ -145,11 +203,13 @@ async def test_developer_agent_writes_files(llm_workspace: str):
     files = [
         {"path": "backend/main.py", "content": "from fastapi import FastAPI\napp = FastAPI()\n"},
         {"path": "frontend/package.json", "content": '{"name": "poc"}'},
+        {"path": "frontend/index.html", "content": "<!doctype html>\n"},
+        {"path": "frontend/src/main.tsx", "content": "import App from './App'\n"},
         {"path": "frontend/src/App.tsx", "content": "export default () => null\n"},
     ]
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     written = await agent.run(llm_workspace, {}, {})
-    assert written == ["backend/main.py", "frontend/package.json", "frontend/src/App.tsx"]
+    assert len(written) == 5
     assert ws.read_file(llm_workspace, "backend/main.py").startswith("from fastapi")
 
 
@@ -193,6 +253,7 @@ async def test_reviewer_agent_rejects_unknown_status():
 async def test_tester_agent_passes_without_llm_call(llm_workspace: str):
     ws.copy_template(llm_workspace)
     await StubDeveloperAgent().run(llm_workspace, {}, {})
+    _scaffold_frontend(llm_workspace)
     client = FakeClient()  # empty: any LLM call would raise IndexError
     result = await LlmTesterAgent(DeepSeekClient(client=client)).run(llm_workspace)
     assert result.status == "PASSED"
@@ -202,6 +263,7 @@ async def test_tester_agent_passes_without_llm_call(llm_workspace: str):
 async def test_tester_agent_uses_llm_diagnosis_on_failure(llm_workspace: str):
     ws.copy_template(llm_workspace)
     await StubDeveloperAgent().run(llm_workspace, {}, {})
+    _scaffold_frontend(llm_workspace)
     ws.write_file(llm_workspace, "backend/broken.py", "def oops(:\n")
     diagnosis = json.dumps(
         {"summary": "Syntax error in broken.py", "suggestedFix": "Fix the function signature"}
@@ -219,6 +281,7 @@ async def test_tester_agent_falls_back_to_raw_output_when_diagnosis_fails(
 ):
     ws.copy_template(llm_workspace)
     await StubDeveloperAgent().run(llm_workspace, {}, {})
+    _scaffold_frontend(llm_workspace)
     ws.write_file(llm_workspace, "backend/broken.py", "def oops(:\n")
     result = await LlmTesterAgent(DeepSeekClient(client=FakeClient("not json"))).run(llm_workspace)
     assert result.status == "FAILED"

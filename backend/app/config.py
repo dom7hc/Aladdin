@@ -37,6 +37,14 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-flash")
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "8192"))
+# Thinking models spend reasoning tokens out of the max_tokens budget; the
+# structured agents do not need deep reasoning. "off" omits the parameter.
+LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
+# deepseek-flash reasons without bound by default and can exhaust the whole
+# token budget before emitting any content (observed: 32k reasoning tokens,
+# zero output). Structured agents default to thinking disabled; set "enabled"
+# for open-ended chat workloads.
+LLM_THINKING = os.getenv("LLM_THINKING", "disabled")
 
 # Comma-separated list of allowed browser origins (CORS).
 CORS_ORIGINS = [

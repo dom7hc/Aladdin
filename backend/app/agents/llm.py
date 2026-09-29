@@ -33,11 +33,18 @@ from app.workspace import workspace as ws
 
 logger = logging.getLogger(__name__)
 
-MAX_GENERATED_FILES = 16
+MAX_GENERATED_FILES = 10
 MAX_FILE_CHARS = 64_000
 MAX_DIAGNOSIS_CHARS = 2_000
-# Files every generated PoC must keep regardless of what the model produces.
-MINIMAL_FILES = {"backend/main.py", "frontend/package.json"}
+# Files every generated PoC must keep regardless of what the model produces:
+# a runnable FastAPI app and a runnable React entry (index.html + main.tsx
+# mount App.tsx; the template only ships a placeholder package.json).
+MINIMAL_FILES = {
+    "backend/main.py",
+    "frontend/package.json",
+    "frontend/index.html",
+    "frontend/src/main.tsx",
+}
 
 
 class LLMError(Exception):
@@ -54,6 +61,8 @@ class DeepSeekClient:
         model: str | None = None,
         timeout_seconds: float | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+        thinking: str | None = None,
         client: Any = None,
     ) -> None:
         self.api_key = api_key if api_key is not None else config.LLM_API_KEY
@@ -63,6 +72,10 @@ class DeepSeekClient:
             timeout_seconds if timeout_seconds is not None else config.LLM_TIMEOUT_SECONDS
         )
         self.max_tokens = max_tokens if max_tokens is not None else config.LLM_MAX_TOKENS
+        self.reasoning_effort = (
+            reasoning_effort if reasoning_effort is not None else config.LLM_REASONING_EFFORT
+        )
+        self.thinking = thinking if thinking is not None else config.LLM_THINKING
         self._client = client
         if self._client is None:
             try:
@@ -77,22 +90,35 @@ class DeepSeekClient:
 
     async def complete(self, system: str, user: str) -> str:
         """One chat completion; returns the assistant message content."""
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            "max_tokens": self.max_tokens,
+            "stream": False,
+        }
+        if self.thinking == "enabled":
+            kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+            if self.reasoning_effort != "off":
+                kwargs["reasoning_effort"] = self.reasoning_effort
+        else:
+            kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
         try:
-            response = await self._client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                max_tokens=self.max_tokens,
-                stream=False,
-            )
+            response = await self._client.chat.completions.create(**kwargs)
         except Exception as exc:
             raise LLMError(f"LLM request failed: {exc}") from exc
         try:
-            content = response.choices[0].message.content
+            choice = response.choices[0]
+            content = choice.message.content
         except (AttributeError, IndexError, TypeError) as exc:
             raise LLMError("LLM response had no message content") from exc
+        if getattr(choice, "finish_reason", None) == "length":
+            raise LLMError(
+                f"LLM output was truncated at max_tokens={self.max_tokens}; "
+                "increase LLM_MAX_TOKENS or reduce the requested output"
+            )
         if not content or not content.strip():
             raise LLMError("LLM returned an empty message")
         return content
@@ -130,8 +156,13 @@ def _extract_json(text: str) -> dict[str, Any]:
                 candidate = cleaned[start : index + 1]
                 try:
                     parsed = json.loads(candidate)
-                except json.JSONDecodeError as exc:
-                    raise LLMError(f"LLM output was not valid JSON: {exc}") from exc
+                except json.JSONDecodeError:
+                    # Models embedding code in JSON strings often emit raw
+                    # newlines/tabs; strict=False accepts control characters.
+                    try:
+                        parsed = json.loads(candidate, strict=False)
+                    except json.JSONDecodeError as exc:
+                        raise LLMError(f"LLM output was not valid JSON: {exc}") from exc
                 if not isinstance(parsed, dict):
                     raise LLMError("LLM JSON was not an object")
                 return parsed
@@ -250,10 +281,12 @@ class LlmDeveloperAgent(DeveloperAgent):
                 "workspace-relative under backend/ or frontend/ (or README.md); the "
                 "backend is FastAPI and MUST define backend/main.py with a GET /health "
                 "route; the frontend is React and MUST include frontend/package.json "
-                'with a "build" script; reuse the existing template layout '
-                "(backend/{api,models,services}, frontend/src); at most "
-                f"{MAX_GENERATED_FILES} files; concise, runnable code; no binary "
-                "content, no placeholders like TODO.",
+                'with a "build" script, frontend/index.html and '
+                "frontend/src/main.tsx mounting frontend/src/App.tsx; at most "
+                f"{MAX_GENERATED_FILES} files and at most 120 lines per file; write "
+                "tersely, no markdown fences inside content, no comments beyond "
+                "one line where essential, no TODO placeholders, and emit valid "
+                "JSON (escape newlines inside strings).",
                 json.dumps(
                     {
                         "requirements": requirements,

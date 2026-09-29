@@ -97,6 +97,11 @@ export the variables in the shell, or set them in the VM's
 - `LLM_BASE_URL` (default `https://api.deepseek.com`), `LLM_MODEL` (default `deepseek-flash`)
 - `LLM_API_KEY` — required when enabled; never commit it
 - `LLM_TIMEOUT_SECONDS` (default `120`), `LLM_MAX_TOKENS` (default `8192`)
+- `LLM_THINKING` (default `disabled`), `LLM_REASONING_EFFORT` (default `low`) —
+  thinking models spend reasoning tokens from the same `max_tokens` budget;
+  `deepseek-flash` with default thinking has been observed to spend the entire
+  budget on reasoning and return zero content, so the structured agents run
+  with thinking disabled
 
 ## Build/test runner
 

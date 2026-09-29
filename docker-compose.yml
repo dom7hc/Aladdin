@@ -2,7 +2,7 @@
 #
 # Builds both images from source and runs the whole stack on this machine:
 #
-#   docker compose -f docker-compose.local.yml up -d --build
+#   docker compose up -d --build
 #   -> app:    http://localhost:8080
 #   -> health: http://localhost:8080/health
 #   -> API:    http://localhost:8080/api/projects
@@ -52,6 +52,10 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-deepseek-flash}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-120}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
+      LLM_THINKING: ${LLM_THINKING:-disabled}
     volumes:
       # Generated PoC source lives on a named volume, mirroring deployment.
       - generated-local:/var/lib/aladdin/generated
@@ -66,7 +70,7 @@ services:
     image: mongo:7
     restart: unless-stopped
     # Not published: reachable only inside the compose network, so this stack
-    # cannot conflict with the dev-only mongo from docker-compose.yml.
+    # cannot conflict with any other local MongoDB container.
     volumes:
       - mongo-data-local:/data/db
     healthcheck:

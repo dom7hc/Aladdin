@@ -66,6 +66,9 @@ def list_files(project_id: str) -> list[str]:
 def zip_source(project_id: str) -> bytes:
     source = source_dir(project_id)
     files = [p for p in source.rglob("*") if p.is_file()] if source.is_dir() else []
+    # The build/test runner's compileall step leaves __pycache__ behind; those
+    # artifacts are not source and must not ship in the export.
+    files = [p for p in files if "__pycache__" not in p.parts and p.suffix != ".pyc"]
     if not files:
         raise FileNotFoundError(f"No generated source for project {project_id}")
     buffer = BytesIO()

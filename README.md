@@ -38,7 +38,7 @@ Interactive API docs: `http://localhost:8000/docs` — see `backend/README.md` f
 Build and run frontend + backend + MongoDB from source — no Azure needed:
 
 ```powershell
-docker compose -f docker-compose.local.yml up -d --build
+docker compose up -d --build
 ```
 
 Then open **http://localhost:8080** (health: `/health`, API: `/api/projects`).
