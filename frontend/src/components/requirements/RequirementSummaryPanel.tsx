@@ -102,10 +102,12 @@ export function RequirementSummaryPanel({
                     'rounded-full border px-2 py-0.5 text-[11px] font-semibold',
                     filled
                       ? 'border-primary/30 bg-primary/10 text-primary'
-                      : 'border-secondary/30 bg-secondary/15 text-secondary',
+                      : field.optional
+                        ? 'border-white/30 bg-white/15 text-white'
+                        : 'border-secondary/30 bg-secondary/15 text-secondary',
                   )}
                 >
-                  {filled ? 'Captured' : 'Waiting'}
+                  {filled ? 'Captured' : field.optional ? 'Optional' : 'Waiting'}
                 </span>
               </div>
               {filled ? (

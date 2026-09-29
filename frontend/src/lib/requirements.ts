@@ -14,8 +14,8 @@ export const REQUIREMENT_FIELDS: RequirementFieldMeta[] = [
   { key: 'features', label: 'Core Features', icon: 'checklist' },
   { key: 'inputs', label: 'Inputs', icon: 'file_open' },
   { key: 'outputs', label: 'Outputs', icon: 'output' },
-  { key: 'constraints', label: 'Constraints', icon: 'gavel', optional: true },
   { key: 'successCriteria', label: 'Success Criteria', icon: 'verified' },
+  { key: 'constraints', label: 'Constraints', icon: 'gavel', optional: true },
 ]
 
 export const REQUIRED_FIELD_KEYS: RequirementField[] = REQUIREMENT_FIELDS.filter(
