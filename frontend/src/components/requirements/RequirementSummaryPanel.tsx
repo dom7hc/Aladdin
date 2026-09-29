@@ -88,7 +88,11 @@ export function RequirementSummaryPanel({
                 <div
                   className={cn(
                     'flex items-center gap-1.5 text-xs font-bold',
-                    filled ? 'text-primary' : 'text-secondary',
+                    filled
+                      ? 'text-primary'
+                      : field.optional
+                        ? 'text-white'
+                        : 'text-secondary',
                   )}
                 >
                   <MaterialIcon
