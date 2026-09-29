@@ -84,3 +84,31 @@ async def test_generate_from_failed_allows_retry(client, db, project_id):
 def test_generate_rejects_wrong_state(client, project_id):
     response = client.post(f"/api/projects/{project_id}/generate")
     assert response.status_code == 409
+
+
+async def test_generate_refuses_when_too_many_are_running(client, db, project_id, monkeypatch):
+    """The site is open, so a burst of visitors must be refused, not queued.
+
+    Each run is a chain of LLM calls plus a test run; an unbounded number
+    would exhaust the VM and the LLM budget.
+    """
+    from app import config
+    from app.repositories.project_repository import ProjectRepository
+    from app.schemas.project import empty_requirements
+
+    answer_all_questions(client, project_id)
+    client.post(f"/api/projects/{project_id}/requirements/finalize")
+
+    monkeypatch.setattr(config, "MAX_CONCURRENT_GENERATIONS", 2)
+    repo = ProjectRepository(db)
+    for status in ("GENERATING", "REVIEWING"):
+        busy = await repo.create("busy", "busy", empty_requirements("p"), 100)
+        await repo.update_fields(busy, {"status": status})
+
+    response = client.post(f"/api/projects/{project_id}/generate")
+    assert response.status_code == 429
+    assert "limit" in response.json()["detail"]
+
+    # Once one finishes, the next request goes through.
+    await repo.update_fields(busy, {"status": "READY"})
+    assert client.post(f"/api/projects/{project_id}/generate").status_code == 202

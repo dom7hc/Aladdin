@@ -66,6 +66,12 @@ PREVIEW_HEALTH_TIMEOUT_SECONDS = float(os.getenv("PREVIEW_HEALTH_TIMEOUT_SECONDS
 PREVIEW_TTL_SECONDS = float(os.getenv("PREVIEW_TTL_SECONDS", "3600"))
 PREVIEW_REAP_INTERVAL_SECONDS = float(os.getenv("PREVIEW_REAP_INTERVAL_SECONDS", "300"))
 
+# The site is open, so anyone can start a generation. Each one is a chain of
+# LLM calls plus a test run, so an unbounded number would exhaust the VM and
+# the LLM budget. Requests beyond this are refused with a clear message rather
+# than queued invisibly.
+MAX_CONCURRENT_GENERATIONS = int(os.getenv("MAX_CONCURRENT_GENERATIONS", "3"))
+
 # Public origin of this deployment, used to build preview URLs that work from
 # a browser. Without it previews would advertise localhost, which only
 # resolves for someone sitting at the Docker host.
