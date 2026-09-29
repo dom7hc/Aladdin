@@ -38,6 +38,12 @@ services:
       MONGODB_DB: ${MONGO_DATABASE}
       GENERATED_DIR: /var/lib/aladdin/generated
       DEPLOY_ENV: ${DEPLOY_ENV}
+      # LLM agents stay off unless runtime.env sets LLM_ENABLED=true and the
+      # key. Values come from /opt/aladdin/<env>/runtime.env (never in Git).
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-flash}
     volumes:
       # Generated PoC source exists only on disk and is not mirrored into
       # Mongo, so losing it would leave READY projects with broken downloads.

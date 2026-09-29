@@ -5,12 +5,15 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app import config
 from app.agents.base import (
     ArchitectAgent,
     DeveloperAgent,
+    RequirementAgent,
     ReviewerAgent,
     TesterAgent,
 )
+from app.agents.llm import LlmRequirementAgent, build_llm_agents
 from app.agents.stubs import (
     StubArchitectAgent,
     StubDeveloperAgent,
@@ -41,17 +44,26 @@ def get_db(request: Request) -> AsyncIOMotorDatabase:
     return request.app.state.db
 
 
+def _requirement_agent() -> RequirementAgent:
+    if config.LLM_ENABLED:
+        return LlmRequirementAgent()
+    return StubRequirementAgent()
+
+
 def get_project_service(db: Annotated[AsyncIOMotorDatabase, Depends(get_db)]) -> ProjectService:
-    return ProjectService(db, requirement_agent=StubRequirementAgent())
+    return ProjectService(db, requirement_agent=_requirement_agent())
 
 
 def get_generation_service(
     db: Annotated[AsyncIOMotorDatabase, Depends(get_db)],
 ) -> PocGenerationService:
-    architect: ArchitectAgent = StubArchitectAgent()
-    developer: DeveloperAgent = StubDeveloperAgent()
-    reviewer: ReviewerAgent = StubReviewerAgent()
-    tester: TesterAgent = StubTesterAgent()
+    if config.LLM_ENABLED:
+        architect, developer, reviewer, tester = build_llm_agents()
+    else:
+        architect: ArchitectAgent = StubArchitectAgent()
+        developer: DeveloperAgent = StubDeveloperAgent()
+        reviewer: ReviewerAgent = StubReviewerAgent()
+        tester: TesterAgent = StubTesterAgent()
     return PocGenerationService(db, architect, developer, reviewer, tester)
 
 

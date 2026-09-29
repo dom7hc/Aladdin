@@ -27,6 +27,17 @@ TESTER_RUN_PIP_INSTALL = _env_flag("TESTER_RUN_PIP_INSTALL", "false")
 TESTER_RUN_PYTEST = _env_flag("TESTER_RUN_PYTEST", "true")
 TESTER_RUN_NPM_BUILD = _env_flag("TESTER_RUN_NPM_BUILD", "false")
 
+# LLM-backed agents (replaces the deterministic stubs when enabled). The key
+# never lives in Git: set LLM_API_KEY in the local shell or in the VM's
+# /opt/aladdin/<env>/runtime.env. With LLM_ENABLED=false the stub agents run
+# and no LLM call is ever made.
+LLM_ENABLED = _env_flag("LLM_ENABLED", "false")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-flash")
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "8192"))
+
 # Comma-separated list of allowed browser origins (CORS).
 CORS_ORIGINS = [
     origin.strip()
