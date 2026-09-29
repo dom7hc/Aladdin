@@ -2,38 +2,19 @@
 #
 # Caddy owns the internet-facing ports and terminates TLS; the Compose
 # stacks bind loopback only and are reached over 127.0.0.1. Certificates
-# are obtained and renewed automatically from Let's Encrypt.
+# are obtained and renewed automatically from Let's Encrypt, and port 80
+# serves the HTTP -> HTTPS redirect and ACME challenges.
 
 {
 	email dom7hc@bosch.com
-
-	# TRANSITIONAL: the production stack still holds port 80, so Caddy must
-	# not try to bind it for redirects. Remove this line once production is
-	# on 8081 to restore HTTP -> HTTPS redirects.
-	auto_https disable_redirects
 }
 
 # Production.
 n4s-aladdin.southeastasia.cloudapp.azure.com {
-	# TRANSITIONAL: with port 80 unavailable, certificates are issued over
-	# TLS-ALPN on 443 instead of the HTTP challenge. Remove the tls block
-	# once port 80 is free.
-	tls {
-		issuer acme {
-			disable_http_challenge
-		}
-	}
-
 	reverse_proxy 127.0.0.1:8081
 }
 
 # Development, same certificate, separate port.
 n4s-aladdin.southeastasia.cloudapp.azure.com:8443 {
-	tls {
-		issuer acme {
-			disable_http_challenge
-		}
-	}
-
 	reverse_proxy 127.0.0.1:8080
 }

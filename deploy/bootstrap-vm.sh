@@ -72,21 +72,34 @@ fi
 systemctl enable docker
 
 # --- Runtime environment files ----------------------------------------------
-# Created empty if absent, never overwritten. AZURE_REGISTRY is read by both
-# deploy.sh (for `az acr login`) and compose.yml (to resolve image names).
+# Created with a template if absent, never overwritten.
+#
+#   AZURE_REGISTRY  read by deploy.sh (az acr login) and compose.yml (images)
+#   MONGODB_URI     managed Cosmos DB for MongoDB vCore cluster; carries
+#                   credentials, so it is filled in by hand and never committed
+#
 # LLM credentials belong here too once the stub agents are replaced.
 
 for env_name in development production; do
   env_file="/opt/aladdin/$env_name/runtime.env"
   if [ ! -f "$env_file" ]; then
     install -o root -g root -m 0600 /dev/null "$env_file"
-    printf 'AZURE_REGISTRY=%s\n' "$REGISTRY" >"$env_file"
-    echo "Created $env_file" >&2
+    cat >"$env_file" <<TEMPLATE
+AZURE_REGISTRY=$REGISTRY
+# Required: deployments fail until this is set. Add the administrator
+# password, then uncomment. Percent-encode any of @ / : ? # & % in it.
+# MONGODB_URI=mongodb+srv://dbuser5fjdrl:PASSWORD@n4s-docdb-cluster.mongocluster.cosmos.azure.com/?tls=true&authMechanism=SCRAM-SHA-256&retrywrites=false&maxIdleTimeMS=120000
+TEMPLATE
+    echo "Created $env_file -- set MONGODB_URI before deploying" >&2
   else
     echo "$env_file exists; leaving it unchanged" >&2
   fi
   chmod 0600 "$env_file"
   chown root:root "$env_file"
+
+  if ! grep -q '^MONGODB_URI=' "$env_file"; then
+    echo "WARNING: MONGODB_URI unset in $env_file; deployments will fail" >&2
+  fi
 done
 
 # --- Reverse proxy ----------------------------------------------------------

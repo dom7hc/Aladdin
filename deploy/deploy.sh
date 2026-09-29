@@ -103,6 +103,12 @@ prune_releases() {
     git -C "$REPOSITORY_DIR" worktree remove --force "${stale%/}" 2>/dev/null || true
   done
   git -C "$REPOSITORY_DIR" worktree prune || true
+
+  # Every deployment pulls two new commit-tagged images, so without this the
+  # 30 GB OS disk fills and future deployments fail. Only images unused for a
+  # week go: images in use are untouched, and the rollback target is far
+  # newer than the cutoff.
+  docker image prune --all --force --filter "until=168h" >/dev/null 2>&1 || true
 }
 
 # --- Deploy -----------------------------------------------------------------
