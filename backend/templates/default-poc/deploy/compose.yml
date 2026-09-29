@@ -1,0 +1,48 @@
+# Preview stack for one AI-generated PoC. Managed by the platform's preview
+# service: `docker compose -p aladdin-poc-<id> up -d --build` with POC_PORT set.
+name: poc
+
+services:
+  poc-frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    ports:
+      - "${POC_PORT:?POC_PORT is required}:80"
+    depends_on:
+      poc-backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  poc-backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      MONGODB_URI: mongodb://poc-mongo:27017
+      MONGODB_DB: poc
+    depends_on:
+      poc-mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  poc-mongo:
+    image: mongo:7
+    volumes:
+      - poc-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  poc-mongo-data:

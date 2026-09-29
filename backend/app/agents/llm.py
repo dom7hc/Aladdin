@@ -280,8 +280,11 @@ class LlmDeveloperAgent(DeveloperAgent):
                 '[{"path": "...", "content": "..."}]}. Rules: paths are '
                 "workspace-relative under backend/ or frontend/ (or README.md); the "
                 "backend is FastAPI and MUST define backend/main.py with a GET /health "
-                "route; the frontend is React and MUST include frontend/package.json "
-                'with a "build" script, frontend/index.html and '
+                "route, and backend/requirements.txt MUST list fastapi and "
+                "uvicorn[standard]; the frontend is React and MUST include "
+                'frontend/package.json with a "build" script plus react, '
+                "react-dom, vite, @vitejs/plugin-react and typescript in its "
+                "dependencies/devDependencies, frontend/index.html and "
                 "frontend/src/main.tsx mounting frontend/src/App.tsx; at most "
                 f"{MAX_GENERATED_FILES} files and at most 120 lines per file; write "
                 "tersely, no markdown fences inside content, no comments beyond "

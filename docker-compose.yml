@@ -39,6 +39,10 @@ services:
 
   backend:
     build: ./backend
+    # Local-only override: Docker Desktop's socket is root:root 0660, so the
+    # preview feature needs root inside this container. The image default
+    # stays non-root (the deployed stack does not mount the socket at all).
+    user: "0:0"
     restart: unless-stopped
     depends_on:
       mongo:
@@ -59,6 +63,11 @@ services:
     volumes:
       # Generated PoC source lives on a named volume, mirroring deployment.
       - generated-local:/var/lib/aladdin/generated
+      # Preview feature: build/run generated PoCs against the host daemon.
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      # Reach host-published preview ports from inside the container.
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1"]
       interval: 10s

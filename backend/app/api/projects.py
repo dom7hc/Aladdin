@@ -29,12 +29,14 @@ from app.schemas.project import (
     ChatResponse,
     FinalizeResponse,
     GenerateResponse,
+    PreviewResponse,
     ProjectCreate,
     ProjectResponse,
     RequirementStateResponse,
     StatusResponse,
 )
 from app.services.generation_service import PocGenerationService
+from app.services.preview_service import PreviewNotReadyError, PreviewService
 from app.services.project_service import InvalidTransitionError, ProjectService
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -171,6 +173,51 @@ async def source(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{project_id}.zip"'},
     )
+
+
+def get_preview_service(db: Annotated[AsyncIOMotorDatabase, Depends(get_db)]) -> PreviewService:
+    return PreviewService(db)
+
+
+@router.post("/{project_id}/preview", response_model=PreviewResponse, status_code=202)
+async def start_preview(
+    project_id: str,
+    background: BackgroundTasks,
+    preview: Annotated[PreviewService, Depends(get_preview_service)],
+) -> PreviewResponse:
+    """Build the generated PoC into images and run it as a local Docker stack."""
+    try:
+        state = await preview.start(project_id)
+    except ProjectNotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found") from None
+    except PreviewNotReadyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    background.add_task(preview.run_build, project_id)
+    return PreviewResponse.model_validate(state)
+
+
+@router.get("/{project_id}/preview", response_model=PreviewResponse)
+async def get_preview(
+    project_id: str,
+    preview: Annotated[PreviewService, Depends(get_preview_service)],
+) -> PreviewResponse:
+    try:
+        state = await preview.get_state(project_id)
+    except ProjectNotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found") from None
+    return PreviewResponse.model_validate(state)
+
+
+@router.delete("/{project_id}/preview", response_model=PreviewResponse)
+async def stop_preview(
+    project_id: str,
+    preview: Annotated[PreviewService, Depends(get_preview_service)],
+) -> PreviewResponse:
+    try:
+        state = await preview.stop(project_id)
+    except ProjectNotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found") from None
+    return PreviewResponse.model_validate(state)
 
 
 async def _guard(project_id: str, awaitable: Any) -> Any:

@@ -46,6 +46,14 @@ LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
 # for open-ended chat workloads.
 LLM_THINKING = os.getenv("LLM_THINKING", "disabled")
 
+# Generated-PoC preview deployment (local Docker only). The backend builds and
+# runs the generated PoC via the host Docker daemon through the mounted socket.
+PREVIEW_PORT_BASE = int(os.getenv("PREVIEW_PORT_BASE", "8200"))
+PREVIEW_PORT_RANGE = int(os.getenv("PREVIEW_PORT_RANGE", "50"))
+# Host the backend uses to reach preview ports published on the host.
+PREVIEW_HEALTH_HOST = os.getenv("PREVIEW_HEALTH_HOST", "host.docker.internal")
+PREVIEW_HEALTH_TIMEOUT_SECONDS = float(os.getenv("PREVIEW_HEALTH_TIMEOUT_SECONDS", "90"))
+
 # Comma-separated list of allowed browser origins (CORS).
 CORS_ORIGINS = [
     origin.strip()

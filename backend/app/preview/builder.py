@@ -1,0 +1,170 @@
+"""Preview deployment of a generated PoC on the local Docker daemon.
+
+The generated workspace ships a `deploy/` directory (Dockerfiles + compose
+file) from the platform template, so every PoC is self-hostable: the builder
+runs `docker compose up -d --build` against the workspace and returns the
+published port. Requires the Docker socket to be available to this process
+(mounted in the local stack; not enabled on the deployed VM yet).
+"""
+
+import asyncio
+import socket
+import subprocess
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+from typing import Any
+
+from app import config
+
+COMPOSE_TIMEOUT_SECONDS = 900
+
+
+class PreviewError(Exception):
+    """Raised when a preview stack cannot be built, started or verified."""
+
+
+def _run(args: list[str], timeout: int) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+
+
+def docker_available() -> bool:
+    """True when a Docker daemon answers through the available client."""
+    try:
+        return _run(["docker", "version", "--format", "{{.Server.Version}}"], 15).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def pick_port() -> int:
+    """First free port in the configured preview range."""
+    for port in range(
+        config.PREVIEW_PORT_BASE, config.PREVIEW_PORT_BASE + config.PREVIEW_PORT_RANGE
+    ):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            try:
+                probe.bind(("127.0.0.1", port))
+            except OSError:
+                continue
+        return port
+    raise PreviewError(
+        f"No free port in {config.PREVIEW_PORT_BASE}..{config.PREVIEW_PORT_BASE + config.PREVIEW_PORT_RANGE - 1}"
+    )
+
+
+def compose_file(source_dir: Path) -> Path:
+    path = source_dir / "deploy" / "compose.yml"
+    if not path.is_file():
+        raise PreviewError(
+            "Generated workspace has no deploy/compose.yml; re-run generation "
+            "with a template that ships the preview stack"
+        )
+    return path
+
+
+def stack_up(source_dir: Path, project_id: str, port: int) -> dict[str, Any]:
+    """Build and start the PoC preview stack; returns normalized command output."""
+    compose_path = compose_file(source_dir)
+    args = [
+        "docker",
+        "compose",
+        "-p",
+        f"aladdin-poc-{project_id[:8]}",
+        "--env-file",
+        _write_env(source_dir, port),
+        "-f",
+        str(compose_path),
+        "up",
+        "-d",
+        "--build",
+        "--remove-orphans",
+    ]
+    try:
+        result = _run(args, COMPOSE_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        raise PreviewError(f"Preview build timed out after {COMPOSE_TIMEOUT_SECONDS}s") from exc
+    if result.returncode != 0:
+        raise PreviewError(_tail(result.stderr or result.stdout or "docker compose failed"))
+    return {
+        "command": " ".join(args[:2] + ["up -d --build"]),
+        "exitCode": 0,
+        "stdout": _trim(result.stdout),
+        "stderr": _trim(result.stderr),
+        "durationMs": None,
+    }
+
+
+def stack_down(project_id: str, source_dir: Path | None = None) -> None:
+    """Stop and remove the PoC preview stack (and its volumes)."""
+    args = ["docker", "compose", "-p", f"aladdin-poc-{project_id[:8]}"]
+    if source_dir is not None and compose_file(source_dir).is_file():
+        args += [
+            "--env-file",
+            _write_env(source_dir, 0),
+            "-f",
+            str(source_dir / "deploy" / "compose.yml"),
+        ]
+    args += ["down", "-v", "--remove-orphans"]
+    try:
+        result = _run(args, 120)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise PreviewError(f"Failed to stop preview stack: {exc}") from exc
+    if result.returncode != 0:
+        raise PreviewError(_trim(result.stderr or "docker compose down failed"))
+
+
+def wait_healthy(port: int) -> bool:
+    """Poll the published PoC health endpoint until it answers or time runs out."""
+    url = f"http://{config.PREVIEW_HEALTH_HOST}:{port}/health"
+    deadline = time.monotonic() + config.PREVIEW_HEALTH_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:
+                if response.status == 200:
+                    return True
+        except (urllib.error.URLError, OSError):
+            pass
+        time.sleep(3)
+    return False
+
+
+def _write_env(source_dir: Path, port: int) -> str:
+    env_path = source_dir / "deploy" / ".preview.env"
+    env_path.write_text(f"POC_PORT={port}\n", encoding="utf-8")
+    return str(env_path)
+
+
+def _trim(text: str, limit: int = 4_000) -> str:
+    return text if len(text) <= limit else text[:limit] + "\n... [truncated]"
+
+
+def _tail(text: str, limit: int = 1_500) -> str:
+    """Keep the END of build output: that is where the actual error lives."""
+    text = text.strip()
+    return text if len(text) <= limit else "... [truncated]\n" + text[-limit:]
+
+
+async def build_and_start(project_id: str) -> int:
+    """Async orchestration used by the preview service."""
+    if not await asyncio.to_thread(docker_available):
+        raise PreviewError(
+            "Docker is not available to this backend; preview requires a mounted Docker socket"
+        )
+    from app.workspace import workspace as ws
+
+    source_dir = Path(ws.source_dir(project_id))
+    if not (source_dir / "backend" / "main.py").is_file():
+        raise PreviewError("Generated workspace is empty; run generate first")
+    port = await asyncio.to_thread(pick_port)
+    await asyncio.to_thread(stack_up, source_dir, project_id, port)
+    healthy = await asyncio.to_thread(wait_healthy, port)
+    if not healthy:
+        raise PreviewError(f"Preview containers are up but /health never answered on port {port}")
+    return port
