@@ -307,20 +307,27 @@ deploy/compose.yml
 Required validation commands:
 
 ```text
-frontend: npm run lint, npm test, npm run build
-backend:  configured lint command, pytest
+frontend: npm ci, npm run lint, npm run build
+backend:  ruff check, ruff format --check, pytest
 runtime:  GET /health returns HTTP 200
 ```
 
-The Compose file must accept these values without editing tracked files:
+The frontend defines no test script, so frontend CI runs lint and build only.
+
+The Compose file must accept these values without editing tracked files.
+The first group is passed per deployment by `deploy.sh`; the second comes
+from `/opt/aladdin/<env>/runtime.env` on the VM and is never committed:
 
 ```text
-IMAGE_TAG
-DEPLOY_ENV
-COMPOSE_PROJECT_NAME
-MONGO_DATABASE
-PUBLIC_PORT
+per deployment   IMAGE_TAG, DEPLOY_ENV, COMPOSE_PROJECT_NAME,
+                 MONGO_DATABASE, PUBLIC_PORT
+from runtime.env AZURE_REGISTRY, MONGODB_URI
 ```
+
+`MONGODB_URI` points at the managed Cosmos DB for MongoDB vCore cluster
+`n4s-docdb-cluster`, reached over the private endpoint in the vnet. The
+stack runs no database container; `MONGO_DATABASE` is what keeps
+`aladdin_dev` and `aladdin_prod` separate on the shared cluster.
 
 It must route `GET /health` through the public frontend port so deployment verification can use `http://127.0.0.1:$PUBLIC_PORT/health` on the VM.
 
