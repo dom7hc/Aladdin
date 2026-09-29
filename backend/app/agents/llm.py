@@ -33,7 +33,7 @@ from app.workspace import workspace as ws
 
 logger = logging.getLogger(__name__)
 
-MAX_GENERATED_FILES = 10
+MAX_GENERATED_FILES = 14
 MAX_FILE_CHARS = 64_000
 MAX_DIAGNOSIS_CHARS = 2_000
 # Files every generated PoC must keep regardless of what the model produces:
@@ -303,7 +303,9 @@ class LlmDeveloperAgent(DeveloperAgent):
         files = payload.get("files")
         if not isinstance(files, list) or not files:
             raise LLMError("LLM developer output lacked a non-empty 'files' array")
-        written: list[str] = []
+        # Validate everything BEFORE writing anything: a failure must never
+        # leave a half-written workspace behind.
+        validated: list[tuple[str, str]] = []
         for entry in files:
             if not isinstance(entry, dict):
                 raise LLMError("LLM developer files contained a non-object entry")
@@ -314,10 +316,28 @@ class LlmDeveloperAgent(DeveloperAgent):
                 raise LLMError(f"LLM developer produced empty content for {path}")
             if len(content) > MAX_FILE_CHARS:
                 raise LLMError(f"LLM developer file {path} exceeded the size limit")
+            validated.append((path, content))
+        if len(validated) > MAX_GENERATED_FILES:
+            # Models are bad at counting: keep required files plus the first
+            # entries within budget instead of failing the whole pipeline.
+            # The reviewer sees the trimmed coverage and the repair loop can
+            # ask the developer to converge.
+            prioritized = [
+                v for v in validated if v[0] in MINIMAL_FILES or v[0] == "backend/requirements.txt"
+            ]
+            rest = [v for v in validated if v not in prioritized]
+            dropped = validated[MAX_GENERATED_FILES:]
+            logger.warning(
+                "LLM developer produced %d files; keeping %d, dropping: %s",
+                len(validated),
+                MAX_GENERATED_FILES,
+                ", ".join(path for path, _ in dropped) or "none",
+            )
+            validated = (prioritized + rest)[:MAX_GENERATED_FILES]
+        written: list[str] = []
+        for path, content in validated:
             ws.write_file(project_id, path, content)
             written.append(path)
-        if len(written) > MAX_GENERATED_FILES:
-            raise LLMError("LLM developer exceeded the file count limit")
         missing = MINIMAL_FILES - set(ws.list_files(project_id))
         if missing:
             raise LLMError(

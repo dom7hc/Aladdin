@@ -37,6 +37,14 @@ def test_pick_port_returns_free_port():
     )
 
 
+def test_pick_port_skips_occupied():
+    base = builder.config.PREVIEW_PORT_BASE
+    assert builder.pick_port({base, base + 1}) == base + 2
+    occupied = set(range(base, base + builder.config.PREVIEW_PORT_RANGE))
+    with pytest.raises(builder.PreviewError, match="No free port"):
+        builder.pick_port(occupied)
+
+
 def test_compose_file_missing_raises(preview_ws: Path):
     with pytest.raises(builder.PreviewError, match="deploy/compose.yml"):
         builder.compose_file(preview_ws)
@@ -97,7 +105,7 @@ async def test_start_and_failed_build_flow(db, monkeypatch):
     await repo.update_fields(project_id, {"status": "READY"})
     monkeypatch.setattr(builder, "docker_available", lambda: True)
 
-    async def explode(pid):
+    async def explode(pid, occupied):
         raise builder.PreviewError("docker build exploded")
 
     monkeypatch.setattr(builder, "build_and_start", explode)
@@ -116,7 +124,7 @@ async def test_successful_build_flow_records_port(db, monkeypatch):
     await repo.update_fields(project_id, {"status": "READY"})
     monkeypatch.setattr(builder, "docker_available", lambda: True)
 
-    async def fake_build(pid):
+    async def fake_build(pid, occupied):
         return 8207
 
     monkeypatch.setattr(builder, "build_and_start", fake_build)

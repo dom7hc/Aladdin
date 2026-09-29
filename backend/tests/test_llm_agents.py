@@ -222,6 +222,29 @@ async def test_developer_agent_rejects_unsafe_paths(llm_workspace: str):
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     with pytest.raises(LLMError, match="unsafe path"):
         await agent.run(llm_workspace, {}, {})
+    assert ws.list_files(llm_workspace) == []  # nothing written on failure
+
+
+async def test_developer_agent_truncates_overflow_keeping_required(llm_workspace: str):
+    files: list[dict[str, str]] = [
+        {"path": "frontend/src/pages/Extra.tsx", "content": "x"} for _ in range(14)
+    ]
+    files.insert(0, {"path": "backend/main.py", "content": "app = 1\n"})
+    files.insert(1, {"path": "frontend/package.json", "content": "{}\n"})
+    files.insert(2, {"path": "frontend/index.html", "content": "<html>\n"})
+    files.insert(3, {"path": "frontend/src/main.tsx", "content": "x\n"})
+    files.append({"path": "backend/requirements.txt", "content": "fastapi\n"})
+    agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+    written = await agent.run(llm_workspace, {}, {})
+    assert len(written) == llm.MAX_GENERATED_FILES
+    for required in (
+        "backend/main.py",
+        "frontend/package.json",
+        "frontend/index.html",
+        "frontend/src/main.tsx",
+        "backend/requirements.txt",
+    ):
+        assert required in written
 
 
 async def test_developer_agent_requires_minimal_files(llm_workspace: str):
