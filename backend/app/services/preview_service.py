@@ -60,10 +60,19 @@ class PreviewService:
             )
         return await self._save_state(project_id, status="building")
 
+    async def _occupied_ports(self) -> set[int]:
+        """Ports published by previews that are currently running."""
+        cursor = self.repo.collection.find(
+            {"preview.status": "running", "preview.port": {"$ne": None}},
+            {"preview.port": 1},
+        )
+        return {doc["preview"]["port"] async for doc in cursor}
+
     async def run_build(self, project_id: str) -> None:
         """Background task: build, start and health-check the preview stack."""
         try:
-            port = await builder.build_and_start(project_id)
+            occupied = await self._occupied_ports()
+            port = await builder.build_and_start(project_id, occupied)
         except (builder.PreviewError, OSError) as exc:
             logger.warning("Preview build failed for %s: %s", project_id, exc)
             await self._save_state(project_id, status="failed", message=str(exc)[:1500])

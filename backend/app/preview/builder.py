@@ -43,11 +43,19 @@ def docker_available() -> bool:
         return False
 
 
-def pick_port() -> int:
-    """First free port in the configured preview range."""
+def pick_port(occupied: set[int] | None = None) -> int:
+    """First free port in the configured preview range.
+
+    ``occupied`` lists ports already published by other preview stacks: on
+    Windows a plain bind-probe can succeed against a 0.0.0.0 listener, so the
+    DB-known ports must be excluded before probing.
+    """
+    taken = occupied or set()
     for port in range(
         config.PREVIEW_PORT_BASE, config.PREVIEW_PORT_BASE + config.PREVIEW_PORT_RANGE
     ):
+        if port in taken:
+            continue
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             try:
                 probe.bind(("127.0.0.1", port))
@@ -151,7 +159,7 @@ def _tail(text: str, limit: int = 1_500) -> str:
     return text if len(text) <= limit else "... [truncated]\n" + text[-limit:]
 
 
-async def build_and_start(project_id: str) -> int:
+async def build_and_start(project_id: str, occupied: set[int] | None = None) -> int:
     """Async orchestration used by the preview service."""
     if not await asyncio.to_thread(docker_available):
         raise PreviewError(
@@ -162,7 +170,7 @@ async def build_and_start(project_id: str) -> int:
     source_dir = Path(ws.source_dir(project_id))
     if not (source_dir / "backend" / "main.py").is_file():
         raise PreviewError("Generated workspace is empty; run generate first")
-    port = await asyncio.to_thread(pick_port)
+    port = await asyncio.to_thread(pick_port, occupied)
     await asyncio.to_thread(stack_up, source_dir, project_id, port)
     healthy = await asyncio.to_thread(wait_healthy, port)
     if not healthy:
