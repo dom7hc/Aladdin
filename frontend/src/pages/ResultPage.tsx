@@ -12,7 +12,8 @@ import { cn } from '@/lib/cn'
 import { formatClockTime } from '@/lib/format'
 import { useProjectQuery } from '@/hooks/useProject'
 import { useArtifactsQuery, useDownloadSource } from '@/hooks/useArtifacts'
-import type { Artifact, ArtifactType } from '@/types'
+import { usePreviewQuery, useStartPreview, useStopPreview } from '@/hooks/usePreview'
+import type { Artifact, ArtifactType, PreviewState } from '@/types'
 
 const ARTIFACT_META: Record<ArtifactType, { label: string; icon: string; group: string }> = {
   REQUIREMENTS_JSON: { label: 'Requirements (JSON)', icon: 'data_object', group: 'Requirements' },
@@ -35,6 +36,20 @@ function groupScore(artifacts: Artifact[], types: ArtifactType[]): 'pass' | 'pen
     : 'pending'
 }
 
+function previewBadgeLabel(preview: PreviewState): string {
+  switch (preview.status) {
+    case 'running':
+      return 'Live Sandbox'
+    case 'building':
+      return 'Deploying…'
+    case 'failed':
+    case 'unhealthy':
+      return 'Deploy failed'
+    default:
+      return 'Not deployed'
+  }
+}
+
 export function ResultPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -43,6 +58,12 @@ export function ResultPage() {
   const projectQuery = useProjectQuery(id)
   const artifactsQuery = useArtifactsQuery(id)
   const download = useDownloadSource(id ?? '')
+  const previewQuery = usePreviewQuery(id)
+  const startPreview = useStartPreview(id)
+  const stopPreview = useStopPreview(id)
+
+  const preview: PreviewState =
+    previewQuery.data ?? { status: 'none', port: null, url: null, message: null, updatedAt: null }
 
   const artifacts = useMemo(() => artifactsQuery.data ?? [], [artifactsQuery.data])
 
@@ -61,7 +82,7 @@ export function ResultPage() {
   const activeArtifact =
     artifacts.find((artifact) => artifactKey(artifact) === activeArtifactKey) ?? artifacts[0]
 
-  if (projectQuery.isError || artifactsQuery.isError) {
+  if (projectQuery.isError || artifactsQuery.isError || previewQuery.isError) {
     return (
       <AppLayout>
         <div className="mx-auto max-w-2xl px-4 py-20">
@@ -75,7 +96,7 @@ export function ResultPage() {
     )
   }
 
-  if (projectQuery.isPending || artifactsQuery.isPending) {
+  if (projectQuery.isPending || artifactsQuery.isPending || previewQuery.isPending) {
     return (
       <AppLayout>
         <LoadingState label="Unrolling your PoC artifacts…" />
@@ -84,9 +105,7 @@ export function ResultPage() {
   }
 
   const project = projectQuery.data
-  const sandboxUrl = `https://poc.example.com/${project.name
-    .toLowerCase()
-    .replace(/\s+/g, '-')}`
+  const sandboxUrl = preview.url
 
   return (
     <AppLayout>
@@ -127,45 +146,93 @@ export function ResultPage() {
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-on-surface">{project.name}</h2>
+                  <span className="text-xs text-on-surface-variant">
+                    React + FastAPI + MongoDB sandbox
+                  </span>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-outline-variant/60 bg-surface-container-highest/80 px-2.5 py-1 font-mono text-xs font-medium text-on-surface-variant">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                Active Sandbox
+                v1.0 • {previewBadgeLabel(preview)}
               </span>
             </div>
 
             <div className="relative z-10 flex flex-col gap-2">
               <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-secondary">
+                <MaterialIcon name="sparkles" size={13} />
                 Live Sandbox Endpoint
               </span>
-              <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-2 sm:flex-row sm:items-center sm:pl-3.5">
-                <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                  <MaterialIcon name="captive_portal" size={18} className="text-primary" />
-                  <span className="truncate font-mono text-sm font-medium text-primary-fixed select-all">
-                    {sandboxUrl}
-                  </span>
+              {preview.status === 'running' && sandboxUrl ? (
+                <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-2 sm:flex-row sm:items-center sm:pl-3.5">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                    <MaterialIcon name="captive_portal" size={18} className="text-primary" />
+                    <span className="truncate font-mono text-sm font-medium text-primary-fixed select-all">
+                      {sandboxUrl}
+                    </span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void navigator.clipboard.writeText(sandboxUrl)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface transition-all hover:bg-surface-bright"
+                    >
+                      <MaterialIcon name="content_copy" size={15} />
+                      Copy Link
+                    </button>
+                    <Button
+                      variant="ghost"
+                      icon="stop_circle"
+                      onClick={() => stopPreview.mutate()}
+                      loading={stopPreview.isPending}
+                      className="px-3 py-1.5 text-xs"
+                    >
+                      Stop
+                    </Button>
+                    <a
+                      href={sandboxUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-on-primary shadow-glow-primary transition-all hover:bg-primary-fixed active:scale-95"
+                    >
+                      Open PoC
+                      <MaterialIcon name="open_in_new" size={15} />
+                    </a>
+                  </div>
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void navigator.clipboard.writeText(sandboxUrl)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/60 bg-surface-container-high px-3 py-1.5 text-xs font-medium text-on-surface transition-all hover:bg-surface-bright"
-                  >
-                    <MaterialIcon name="content_copy" size={15} />
-                    Copy Link
-                  </button>
-                  <a
-                    href={sandboxUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-on-primary shadow-glow-primary transition-all hover:bg-primary-fixed active:scale-95"
-                  >
-                    Open PoC
-                    <MaterialIcon name="open_in_new" size={15} />
-                  </a>
+              ) : (
+                <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-2 sm:flex-row sm:items-center sm:pl-3.5">
+                  <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                    <MaterialIcon
+                      name={preview.status === 'building' ? 'progress_activity' : 'cloud_off'}
+                      size={18}
+                      className={cn('text-primary', preview.status === 'building' && 'animate-spin')}
+                    />
+                    <span className="truncate text-sm text-on-surface-variant">
+                      {preview.status === 'building'
+                        ? 'Building the generated PoC into Docker images… this usually takes one to three minutes.'
+                        : preview.status === 'failed' || preview.status === 'unhealthy'
+                          ? `Deployment failed: ${preview.message ?? 'unknown error'}`
+                          : 'The generated PoC is not deployed yet. Build it into containers to get a live URL.'}
+                    </span>
+                  </div>
+                  <div className="flex flex-shrink-0 items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      icon={preview.status === 'building' ? 'hourglass_empty' : 'rocket_launch'}
+                      onClick={() => startPreview.mutate()}
+                      loading={startPreview.isPending || preview.status === 'building'}
+                      disabled={preview.status === 'building'}
+                      className="px-3.5 py-1.5 text-xs"
+                    >
+                      {preview.status === 'building'
+                        ? 'Deploying'
+                        : preview.status === 'failed' || preview.status === 'unhealthy'
+                          ? 'Retry Deploy'
+                          : 'Deploy Preview'}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="relative z-10 flex flex-wrap items-center gap-3 border-t border-outline-variant/40 pt-4">
@@ -177,9 +244,6 @@ export function ResultPage() {
                 className="px-4 py-2 text-xs"
               >
                 Download Project
-              </Button>
-              <Button variant="secondary" icon="slideshow" className="px-4 py-2 text-xs">
-                Generate PowerPoint
               </Button>
               <Button
                 variant="ghost"

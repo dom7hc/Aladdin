@@ -21,6 +21,7 @@ export interface Project {
   currentStep?: string | null
   createdAt: string
   updatedAt: string
+  preview?: PreviewState
 }
 
 export interface RequirementData {
@@ -80,6 +81,16 @@ export interface ProjectStatus {
   completion: number
   steps: Record<string, StepState>
   message?: string
+}
+
+export type PreviewStatus = 'none' | 'building' | 'running' | 'failed' | 'unhealthy'
+
+export interface PreviewState {
+  status: PreviewStatus
+  port: number | null
+  url: string | null
+  message: string | null
+  updatedAt: string | null
 }
 
 export interface CreateProjectRequest {

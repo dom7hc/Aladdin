@@ -10,12 +10,17 @@ export interface GenerationState {
   fail: boolean
 }
 
+export interface PreviewBuildState {
+  startedAt: number
+}
+
 export interface MockState {
   projects: Project[]
   requirements: Record<string, RequirementData>
   messages: Record<string, ChatMessage[]>
   artifacts: Record<string, Artifact[]>
   generation: Record<string, GenerationState>
+  previewBuilds: Record<string, PreviewBuildState>
 }
 
 const STORAGE_KEY = 'aladdin.mock.state.v1'
@@ -26,6 +31,7 @@ const emptyState = (): MockState => ({
   messages: {},
   artifacts: {},
   generation: {},
+  previewBuilds: {},
 })
 
 let state: MockState | null = null

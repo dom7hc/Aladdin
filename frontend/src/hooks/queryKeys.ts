@@ -5,4 +5,5 @@ export const queryKeys = {
   requirements: (id: string) => ['projects', id, 'requirements'] as const,
   status: (id: string) => ['projects', id, 'status'] as const,
   artifacts: (id: string) => ['projects', id, 'artifacts'] as const,
+  preview: (id: string) => ['projects', id, 'preview'] as const,
 }

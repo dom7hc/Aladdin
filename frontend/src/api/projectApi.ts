@@ -1,5 +1,6 @@
 import type {
   FinalizeResult,
+  PreviewState,
   Project,
   ProjectStatus,
   RequirementData,
@@ -32,6 +33,18 @@ export function startGeneration(id: string): Promise<void> {
 
 export function getProjectStatus(id: string): Promise<ProjectStatus> {
   return apiFetch<ProjectStatus>(`/projects/${id}/status`)
+}
+
+export function getPreview(id: string): Promise<PreviewState> {
+  return apiFetch<PreviewState>(`/projects/${id}/preview`)
+}
+
+export function startPreview(id: string): Promise<PreviewState> {
+  return apiFetch<PreviewState>(`/projects/${id}/preview`, { method: 'POST' })
+}
+
+export function stopPreview(id: string): Promise<PreviewState> {
+  return apiFetch<PreviewState>(`/projects/${id}/preview`, { method: 'DELETE' })
 }
 
 export interface RequirementsSummary {
