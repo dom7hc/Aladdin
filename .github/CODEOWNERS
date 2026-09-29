@@ -1,0 +1,3 @@
+# CI/CD-sensitive files require review from the repository owner.
+/.github/workflows/ @dom7hc
+/deploy/ @dom7hc
