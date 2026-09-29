@@ -44,6 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Testing GitHub environment: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'development') }}"
           az account show --query '{subscription:name, tenant:tenantId}' --output table
           az acr login \
             --name "${{ vars.AZURE_REGISTRY }}" \
