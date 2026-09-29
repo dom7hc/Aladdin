@@ -33,7 +33,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           <Link to="/" className="btn-primary px-3.5 py-2 text-xs">
             <MaterialIcon name="auto_awesome" size={17} />
-            <span className="hidden sm:inline">New PoC</span>
+            <span className="hidden sm:inline">New</span>
           </Link>
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-secondary to-tertiary-container text-[#251a00] ring-2 ring-secondary/40">
             <MaterialIcon name="person" filled size={18} />

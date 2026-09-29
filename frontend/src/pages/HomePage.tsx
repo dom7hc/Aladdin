@@ -51,7 +51,7 @@ export function HomePage() {
         <section className="mx-auto flex w-full max-w-3xl flex-col items-center pb-8 pt-6">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-surface-container-high/80 px-3 py-1 text-[11px] text-secondary backdrop-blur-sm">
             <MaterialIcon name="stars" size={14} />
-            <span>Your wish is our command</span>
+            <span>Make your wish come true</span>
           </div>
 
           <h1 className="mb-3 text-center text-display-lg-mobile font-extrabold tracking-tight text-on-surface sm:text-display-lg">
@@ -62,8 +62,8 @@ export function HomePage() {
           </h1>
           <p className="mb-8 max-w-lg text-center text-body-lg text-on-surface-variant">
             Describe what you want to build. AI turns your requirements into interactive
-            prototypes in seconds.
-          </p>
+            prototypes.
+          </p>FF
 
           <div className="group relative w-full">
             <div className="absolute -inset-0.5 -z-10 rounded-2xl bg-gradient-to-r from-primary/20 via-tertiary/10 to-secondary/20 blur-sm transition-opacity duration-300 group-focus-within:opacity-100 sm:opacity-40" />
