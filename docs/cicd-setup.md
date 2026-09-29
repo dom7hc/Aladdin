@@ -487,9 +487,31 @@ az vm run-command invoke \
 
 ## Step 10: Configure Ingress
 
-Initially expose production on TCP 80 and development on TCP 8080. Do not expose backend, worker, MongoDB, or Docker daemon ports.
+A Caddy reverse proxy (`deploy/caddy/`) owns the public ports and terminates
+TLS. Both Compose stacks publish to `127.0.0.1` only, so the proxy is the sole
+entry point. Do not expose backend, worker, MongoDB, or Docker daemon ports.
 
-Add HTTPS when a DNS name is available. Restrict TCP 22 to approved Bosch source ranges; the current rule allows SSH from every source.
+The public name comes from the DNS label on `n4sServer-ip`:
+
+```text
+n4s-aladdin.southeastasia.cloudapp.azure.com
+```
+
+| Public port | Serves | Upstream |
+| --- | --- | --- |
+| 443 | Production | `127.0.0.1:8081` |
+| 8443 | Development | `127.0.0.1:8080` |
+| 80 | HTTP to HTTPS redirect and ACME challenges | n/a |
+
+Certificates are issued and renewed automatically from Let's Encrypt. The
+`caddy-data` volume holds them and must survive restarts; losing it forces
+re-issuance and risks Let's Encrypt rate limits.
+
+The proxy is started by `deploy/bootstrap-vm.sh`, not by `deploy.sh`, so a
+failed application deployment cannot take TLS down with it.
+
+Restrict TCP 22 to approved Bosch source ranges; the current rule allows SSH
+from every source.
 
 ## Step 11: Validate End to End
 

@@ -1,0 +1,19 @@
+# Public entry point for both environments.
+#
+# Caddy owns the internet-facing ports and terminates TLS; the Compose
+# stacks bind loopback only and are reached over 127.0.0.1. Certificates
+# are obtained and renewed automatically from Let's Encrypt.
+
+{
+	email dom7hc@bosch.com
+}
+
+# Production.
+n4s-aladdin.southeastasia.cloudapp.azure.com {
+	reverse_proxy 127.0.0.1:8081
+}
+
+# Development, same certificate, separate port.
+n4s-aladdin.southeastasia.cloudapp.azure.com:8443 {
+	reverse_proxy 127.0.0.1:8080
+}

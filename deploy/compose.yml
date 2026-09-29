@@ -13,11 +13,10 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    # The only port published to the host; backend and mongo stay internal.
-    # Bound on all interfaces so the NSG is what limits external reach
-    # (production 80, development 8080). Health checks still use 127.0.0.1.
+    # Loopback only: the Caddy reverse proxy is the sole public entry point
+    # and terminates TLS. Backend and mongo stay internal to the stack.
     ports:
-      - "${PUBLIC_PORT}:80"
+      - "127.0.0.1:${PUBLIC_PORT}:80"
     healthcheck:
       # 127.0.0.1, not localhost: nginx listens on IPv4 only, and busybox
       # wget resolves localhost to ::1 first, which is refused.

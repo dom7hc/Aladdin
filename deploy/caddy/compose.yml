@@ -1,0 +1,22 @@
+# Shared reverse proxy. Deployed once, independently of the per-environment
+# stacks: deploy.sh never restarts it, so a bad application deployment
+# cannot take TLS down with it.
+
+services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: aladdin-caddy
+    restart: unless-stopped
+    # Host networking so the proxy can reach the stacks on 127.0.0.1 without
+    # joining their Compose networks, keeping the environments independent.
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. This volume must survive restarts, or every
+      # restart re-issues and walks into Let's Encrypt rate limits.
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

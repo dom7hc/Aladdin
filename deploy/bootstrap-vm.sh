@@ -89,6 +89,28 @@ for env_name in development production; do
   chown root:root "$env_file"
 done
 
+# --- Reverse proxy ----------------------------------------------------------
+# Caddy terminates TLS for both environments and is deliberately outside the
+# per-environment deploy path, so an application deployment cannot take it
+# down. Started from the checked-out repository if one is present; on a fresh
+# VM the first deployment clones it and this becomes a no-op re-run.
+
+REPOSITORY_DIR="/opt/aladdin/repository"
+CADDY_DIR="$REPOSITORY_DIR/deploy/caddy"
+
+if [ -d "$REPOSITORY_DIR/.git" ]; then
+  # deploy.sh only fetches; it builds worktrees and never moves this working
+  # tree, so refresh it here or the proxy config would stay at clone time.
+  git -C "$REPOSITORY_DIR" fetch --prune origin "+refs/heads/*:refs/remotes/origin/*"
+  git -C "$REPOSITORY_DIR" checkout --force --detach origin/main
+fi
+
+if [ -d "$CADDY_DIR" ]; then
+  docker compose --project-name aladdin-proxy --file "$CADDY_DIR/compose.yml" up -d
+else
+  echo "No proxy config on origin/main yet; start the proxy once it lands" >&2
+fi
+
 # --- Verification -----------------------------------------------------------
 
 docker version --format 'Docker {{.Server.Version}}'
