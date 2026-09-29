@@ -94,7 +94,15 @@ $PrincipalId = az identity show `
   --output tsv
 ```
 
-Create one federated credential per GitHub Environment. Deployment triggers still select the environment from the branch, but GitHub's OIDC subject uses the environment name when a job declares an environment:
+Create one federated credential per GitHub Environment. Deployment triggers still select the environment from the branch, but GitHub's OIDC subject uses the environment name when a job declares an environment.
+
+GitHub adds organization and repository IDs to the subject for repositories using immutable subject claims. Obtain the exact subject from the first failed `azure/login` run, which logs a subject similar to:
+
+```text
+subject claim - repo:dom7hc@260634561/Aladdin@1394518314:environment:development
+```
+
+Use that exact value in the credential:
 
 ```powershell
 az identity federated-credential create `
@@ -102,7 +110,7 @@ az identity federated-credential create `
   --identity-name $IdentityName `
   --name "github-development" `
   --issuer "https://token.actions.githubusercontent.com" `
-  --subject "repo:dom7hc/Aladdin:environment:development" `
+  --subject "repo:dom7hc@260634561/Aladdin@1394518314:environment:development" `
   --audiences "api://AzureADTokenExchange"
 
 az identity federated-credential create `
@@ -110,9 +118,11 @@ az identity federated-credential create `
   --identity-name $IdentityName `
   --name "github-production" `
   --issuer "https://token.actions.githubusercontent.com" `
-  --subject "repo:dom7hc/Aladdin:environment:production" `
+  --subject "repo:dom7hc@260634561/Aladdin@1394518314:environment:production" `
   --audiences "api://AzureADTokenExchange"
 ```
+
+If a run fails with `AADSTS700213: No matching federated identity record found`, the subject or environment name differs. Read the presented subject from the run log and update the federated credential with `az identity federated-credential update`.
 
 If identity creation or federated credentials are denied, record the exact policy error and request a dedicated Entra application with the same two GitHub subjects. Do not reuse a personal login.
 

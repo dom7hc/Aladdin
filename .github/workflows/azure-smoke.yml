@@ -1,0 +1,73 @@
+name: Azure OIDC Smoke Test
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - ".github/workflows/azure-smoke.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub environment and Azure OIDC subject to test
+        required: true
+        type: choice
+        options:
+          - development
+          - production
+        default: development
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: aladdin-vm-deployment
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify Azure access
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'development') }}
+
+    steps:
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure and ACR authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Testing GitHub environment: ${{ inputs.environment || (github.ref_name == 'main' && 'production' || 'development') }}"
+          az account show --query '{subscription:name, tenant:tenantId}' --output table
+          az acr login \
+            --name "${{ vars.AZURE_REGISTRY }}" \
+            --expose-token \
+            --output none
+          az vm show \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_VM_NAME }}" \
+            --query '{name:name, provisioningState:provisioningState}' \
+            --output table
+
+      - name: Verify VM Run Command
+        shell: bash
+        run: |
+          set -euo pipefail
+          result="$(az vm run-command invoke \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.AZURE_VM_NAME }}" \
+            --command-id RunShellScript \
+            --scripts 'set -eu; echo "VM Run Command succeeded"; docker --version; docker compose version; az login --identity --output none; az account show --query "{identity:user.name, type:user.type}" --output table' \
+            --output json)"
+          echo "$result" | jq -r '.value[].message'
+          echo "$result" | jq -e '
+            (.value | length > 0) and
+            all(.value[]; .code | endswith("/succeeded"))
+          ' >/dev/null
