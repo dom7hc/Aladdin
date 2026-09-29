@@ -99,11 +99,7 @@ export function GenerationPage() {
         <div className="mb-8">
           <h1 className="mb-2 flex items-center gap-2 text-3xl font-bold tracking-tight text-on-surface drop-shadow-[0_2px_12px_rgba(71,219,207,0.15)] sm:text-[34px]">
             <span>{meta.headline}</span>
-            <MaterialIcon
-              name={failed ? 'error' : 'sparkles'}
-              size={24}
-              className={failed ? 'text-error' : 'animate-pulse text-secondary'}
-            />
+            {failed && <MaterialIcon name="error" size={24} className="text-error" />}
           </h1>
           <p className="text-base leading-relaxed text-on-surface-variant">
             {meta.description}
