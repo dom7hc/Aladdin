@@ -8,12 +8,22 @@ COPY frontend/package.json ./
 RUN npm install --no-audit --no-fund
 
 COPY frontend/ ./
-# Canonical build inputs: the platform ships index.html, src/main.tsx,
-# vite.config.ts and tsconfig.json so the build works even when the AI omitted
-# them (they overwrite anything the model generated; generated code uses plain
-# relative imports). Without index.html Vite has no entry module, emits no
-# dist/, and the COPY below fails with "stat app/dist: file does not exist".
-COPY deploy/frontend/ ./
+# Canonical build inputs, staged rather than copied over the app.
+#
+# index.html and src/main.tsx are only used as FALLBACKS. They carry content
+# the model owns — the page title, and the stylesheet import that makes the PoC
+# look like anything at all. Overwriting them unconditionally silently dropped
+# `import './styles.css'` and produced an unstyled page with a generic title.
+#
+# vite.config.ts and tsconfig.json are different: they are build configuration,
+# not content, so the platform's versions always win. A model-authored config
+# is a common way for the build to break, and nothing user-visible is lost.
+COPY deploy/frontend/ /canonical/
+RUN set -eu; \
+    [ -f index.html ] || cp /canonical/index.html index.html; \
+    [ -f src/main.tsx ] || { mkdir -p src; cp /canonical/src/main.tsx src/main.tsx; }; \
+    cp /canonical/vite.config.ts vite.config.ts; \
+    cp /canonical/tsconfig.json tsconfig.json
 
 # The generated package.json decides what npm install fetched, and the model
 # routinely omits the build toolchain — vite.config.ts imports

@@ -28,12 +28,17 @@ def test_workspace_ships_preview_deploy_files():
     assert (deploy / "frontend.Dockerfile").is_file()
 
 
-def test_workspace_ships_canonical_vite_entry_point():
-    """The platform must supply the frontend build entry, not the model.
+def test_workspace_ships_fallback_vite_entry_point():
+    """The platform must be able to supply the frontend build entry.
 
     Vite resolves the build from index.html. When it is absent no dist/ is
     emitted and the preview image fails at COPY with "stat app/dist: file
     does not exist" — observed in production before these files existed.
+
+    These are fallbacks, not overrides: frontend.Dockerfile only copies them
+    in when the generated app has none. They carry content the model owns —
+    the page title and the stylesheet import — so overwriting a model-authored
+    entry produced an unstyled page.
     """
     ws.copy_template(PROJECT_ID)
     canonical = ws.source_dir(PROJECT_ID) / "deploy" / "frontend"
