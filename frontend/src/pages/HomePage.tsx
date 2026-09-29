@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/Button'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
 import { useCreateProject, useProjectsQuery } from '@/hooks/useProjects'
-import { STATUS_META } from '@/lib/status'
 import type { ProjectStatusValue } from '@/types'
 
 const SUGGESTIONS = [
@@ -29,6 +28,20 @@ const STATUS_ORDER: ProjectStatusValue[] = [
   'FAILED',
 ]
 
+type StatusGroup = 'IN_PROGRESS' | 'READY' | 'FAILED'
+
+const STATUS_GROUPS: { value: StatusGroup; label: string }[] = [
+  { value: 'IN_PROGRESS', label: 'In progress' },
+  { value: 'READY', label: 'Ready' },
+  { value: 'FAILED', label: 'Failed' },
+]
+
+function statusGroupOf(status: ProjectStatusValue): StatusGroup {
+  if (status === 'READY') return 'READY'
+  if (status === 'FAILED') return 'FAILED'
+  return 'IN_PROGRESS'
+}
+
 type SortKey = 'status' | 'name' | 'createdAt'
 
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
@@ -44,7 +57,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const [idea, setIdea] = useState('')
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<ProjectStatusValue | 'ALL'>('ALL')
+  const [statusFilter, setStatusFilter] = useState<StatusGroup | 'ALL'>('ALL')
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const createProject = useCreateProject()
 
@@ -62,7 +75,8 @@ export function HomePage() {
         !term ||
         project.name.toLowerCase().includes(term) ||
         project.description.toLowerCase().includes(term)
-      const matchesStatus = statusFilter === 'ALL' || project.status === statusFilter
+      const matchesStatus =
+        statusFilter === 'ALL' || statusGroupOf(project.status) === statusFilter
       return matchesTerm && matchesStatus
     })
     return [...filtered].sort((a, b) => {
@@ -174,14 +188,14 @@ export function HomePage() {
                 <select
                   value={statusFilter}
                   onChange={(event) =>
-                    setStatusFilter(event.target.value as ProjectStatusValue | 'ALL')
+                    setStatusFilter(event.target.value as StatusGroup | 'ALL')
                   }
                   className={`${SELECT_CLASS} sm:w-44`}
                 >
                   <option value="ALL">All statuses</option>
-                  {STATUS_ORDER.map((status) => (
-                    <option key={status} value={status}>
-                      {STATUS_META[status].label}
+                  {STATUS_GROUPS.map((group) => (
+                    <option key={group.value} value={group.value}>
+                      {group.label}
                     </option>
                   ))}
                 </select>
