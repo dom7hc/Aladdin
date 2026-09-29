@@ -1,20 +1,85 @@
-# Public entry point for both environments.
+# Public entry point for both environments and for PoC previews.
 #
-# Caddy owns the internet-facing ports and terminates TLS; the Compose
-# stacks bind loopback only and are reached over 127.0.0.1. Certificates
-# are obtained and renewed automatically from Let's Encrypt, and port 80
-# serves the HTTP -> HTTPS redirect and ACME challenges.
+# Caddy owns the internet-facing ports and terminates TLS; everything behind
+# it binds loopback only and is reached over 127.0.0.1. Certificates are
+# obtained and renewed automatically from Let's Encrypt, and port 80 serves
+# the HTTP -> HTTPS redirect and ACME challenges.
+#
+# SITE_PASSWORD_HASH comes from proxy.env on the VM (never committed); make
+# it with `docker run --rm caddy:2.8-alpine caddy hash-password`.
 
 {
 	email dom7hc@bosch.com
 }
 
+(gate) {
+	basic_auth {
+		team {env.SITE_PASSWORD_HASH}
+	}
+}
+
 # Production.
 n4s-aladdin.southeastasia.cloudapp.azure.com {
-	reverse_proxy 127.0.0.1:8081
+	# Left open so uptime checks keep working without credentials. It exposes
+	# nothing but liveness.
+	handle /health {
+		reverse_proxy 127.0.0.1:8081
+	}
+
+	handle {
+		import gate
+		reverse_proxy 127.0.0.1:8081
+	}
 }
 
 # Development, same certificate, separate port.
 n4s-aladdin.southeastasia.cloudapp.azure.com:8443 {
-	reverse_proxy 127.0.0.1:8080
+	handle /health {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	handle {
+		import gate
+		reverse_proxy 127.0.0.1:8080
+	}
+}
+
+# --- PoC preview slots ------------------------------------------------------
+#
+# One port per slot, not one path per slot. Generated frontends call absolute
+# /api/... paths (enforced by app/generation/contract.py), so a shared path
+# prefix would send those calls to Aladdin's own API instead of the PoC's.
+# A distinct origin per preview keeps absolute paths inside that preview.
+#
+# Public 900N -> loopback 820N, which is where preview/builder.py publishes
+# slot N. Previews sit behind the same gate as the rest of the site.
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9001 {
+	import gate
+	reverse_proxy 127.0.0.1:8201
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9002 {
+	import gate
+	reverse_proxy 127.0.0.1:8202
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9003 {
+	import gate
+	reverse_proxy 127.0.0.1:8203
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9004 {
+	import gate
+	reverse_proxy 127.0.0.1:8204
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9005 {
+	import gate
+	reverse_proxy 127.0.0.1:8205
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9006 {
+	import gate
+	reverse_proxy 127.0.0.1:8206
 }
