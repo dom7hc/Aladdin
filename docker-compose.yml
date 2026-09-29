@@ -1,11 +1,81 @@
+# Local full-stack test environment (NOT the deployment stack).
+#
+# Builds both images from source and runs the whole stack on this machine:
+#
+#   docker compose -f docker-compose.local.yml up -d --build
+#   -> app:    http://localhost:8080
+#   -> health: http://localhost:8080/health
+#   -> API:    http://localhost:8080/api/projects
+#
+# The deployed stack lives in deploy/compose.yml (Azure VM); this file is for
+# local testing only and is never used by CI/CD.
+#
+# Configuration comes from the environment or a root .env file (gitignored):
+#   LOCAL_PORT=8080            host port for the app (default 8080)
+#   LLM_ENABLED=true           run the DeepSeek agents instead of stubs
+#   LLM_API_KEY=...            required when LLM_ENABLED=true (never commit)
+#   LLM_MODEL=deepseek-flash   default model
+# LLM flags default to off: without a key the deterministic stub agents run.
+
+name: aladdin-local
+
 services:
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${LOCAL_PORT:-8080}:80"
+    healthcheck:
+      # 127.0.0.1, not localhost: nginx listens on IPv4 only, and busybox
+      # wget resolves localhost to ::1 first, which is refused.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB: aladdin_local
+      GENERATED_DIR: /var/lib/aladdin/generated
+      DEPLOY_ENV: local
+      LLM_ENABLED: ${LLM_ENABLED:-false}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-flash}
+    volumes:
+      # Generated PoC source lives on a named volume, mirroring deployment.
+      - generated-local:/var/lib/aladdin/generated
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   mongo:
     image: mongo:7
-    container_name: aladdin-mongo
-    ports:
-      - "27017:27017"
+    restart: unless-stopped
+    # Not published: reachable only inside the compose network, so this stack
+    # cannot conflict with the dev-only mongo from docker-compose.yml.
     volumes:
-      - mongo-data:/data/db
+      - mongo-data-local:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
-  mongo-data:
+  generated-local:
+  mongo-data-local:

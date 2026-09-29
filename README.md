@@ -33,6 +33,21 @@ py -V:Astral/CPython3.12.13 -m venv .venv
 
 Interactive API docs: `http://localhost:8000/docs` — see `backend/README.md` for the full API table and configuration.
 
+## Full stack locally (Docker)
+
+Build and run frontend + backend + MongoDB from source — no Azure needed:
+
+```powershell
+docker compose -f docker-compose.local.yml up -d --build
+```
+
+Then open **http://localhost:8080** (health: `/health`, API: `/api/projects`).
+Override the port with `LOCAL_PORT`. To test with the DeepSeek agents instead
+of the deterministic stubs, put this in a root `.env` (gitignored) before
+`up`: `LLM_ENABLED=true` and `LLM_API_KEY=<key>`. Teardown:
+`docker compose -f docker-compose.local.yml down` (add `-v` to also drop the
+local Mongo/generated volumes).
+
 ## Tests
 
 Hermetic — no MongoDB required:
