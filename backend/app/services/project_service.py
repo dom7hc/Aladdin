@@ -144,6 +144,26 @@ class ProjectService:
             "message": project.get("error"),
         }
 
+    # Statuses a project passes through while its pipeline is running.
+    GENERATING_STATUSES = (
+        "ARCHITECTING",
+        "ARCHITECTURE_READY",
+        "GENERATING",
+        "REVIEWING",
+        "TESTING",
+    )
+
+    async def generations_in_flight(self) -> int:
+        """How many pipelines are running right now.
+
+        The site is open, so several people may press Generate at once. Each
+        run is a chain of LLM calls plus a test run, so this is what stops a
+        burst of visitors from exhausting the VM and the LLM budget.
+        """
+        return await self.repo.collection.count_documents(
+            {"status": {"$in": list(self.GENERATING_STATUSES)}}
+        )
+
     async def reset_for_retry(self, project_id: str) -> None:
         """Clear a failed run so the pipeline can start again from scratch."""
         project = await self.repo.get_or_raise(project_id)

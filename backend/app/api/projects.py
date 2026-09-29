@@ -139,6 +139,17 @@ async def generate(
             status_code=409,
             detail=(f"Project is {project.status}; generate requires REQUIREMENT_READY or FAILED."),
         )
+    # The site is open, so refuse a burst rather than letting it exhaust the
+    # VM and the LLM budget. Told plainly, since the user can simply retry.
+    in_flight = await service.generations_in_flight()
+    if in_flight >= config.MAX_CONCURRENT_GENERATIONS:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"{in_flight} projects are generating right now, which is the limit. "
+                "Try again in a minute."
+            ),
+        )
     if project.status == "FAILED":
         await _guard(project_id, service.reset_for_retry(project_id))
     background.add_task(generation.generate, project_id)
