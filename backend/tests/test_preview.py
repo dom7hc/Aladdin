@@ -28,6 +28,21 @@ def test_workspace_ships_preview_deploy_files():
     assert (deploy / "frontend.Dockerfile").is_file()
 
 
+def test_workspace_ships_canonical_vite_entry_point():
+    """The platform must supply the frontend build entry, not the model.
+
+    Vite resolves the build from index.html. When it is absent no dist/ is
+    emitted and the preview image fails at COPY with "stat app/dist: file
+    does not exist" — observed in production before these files existed.
+    """
+    ws.copy_template(PROJECT_ID)
+    canonical = ws.source_dir(PROJECT_ID) / "deploy" / "frontend"
+    assert (canonical / "index.html").is_file()
+    assert (canonical / "src" / "main.tsx").is_file()
+    assert (canonical / "vite.config.ts").is_file()
+    assert 'src="/src/main.tsx"' in (canonical / "index.html").read_text(encoding="utf-8")
+
+
 def test_pick_slot_returns_free_slot():
     slot = builder.pick_slot()
     assert 1 <= slot <= builder.config.PREVIEW_SLOTS

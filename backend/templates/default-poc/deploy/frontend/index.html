@@ -1,0 +1,19 @@
+<!doctype html>
+<!--
+  Canonical Vite entry point shipped by the platform.
+
+  Vite resolves the build from index.html, so without this there is no entry
+  module, no dist/ is produced, and the preview image fails at COPY. Shipping
+  it here means a generated PoC builds whether or not the model wrote one.
+-->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PoC</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
