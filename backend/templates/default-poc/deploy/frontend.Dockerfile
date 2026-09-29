@@ -8,10 +8,20 @@ COPY frontend/package.json ./
 RUN npm install --no-audit --no-fund
 
 COPY frontend/ ./
-# Canonical build configs: the platform ships them so the build works even
-# when the AI omitted vite.config.ts/tsconfig.json (they overwrite anything
-# the model generated; generated code uses plain relative imports).
+# Canonical build inputs: the platform ships index.html, src/main.tsx,
+# vite.config.ts and tsconfig.json so the build works even when the AI omitted
+# them (they overwrite anything the model generated; generated code uses plain
+# relative imports). Without index.html Vite has no entry module, emits no
+# dist/, and the COPY below fails with "stat app/dist: file does not exist".
 COPY deploy/frontend/ ./
+
+# The generated package.json decides what npm install fetched, and the model
+# routinely omits the build toolchain — vite.config.ts imports
+# @vitejs/plugin-react, which npx alone would never resolve. Install it
+# explicitly so the preview does not depend on the model getting deps right.
+RUN npm install --no-audit --no-fund --no-save \
+      vite@^5.4 @vitejs/plugin-react@^4.3 react@^18.3 react-dom@^18.3
+
 # Build with vite directly: esbuild strips TypeScript types without
 # type-checking, so model slips like a missing `import React` (tsc TS2503)
 # cannot break the preview build. `npm run build` would run tsc first.
