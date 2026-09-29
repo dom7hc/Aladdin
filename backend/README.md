@@ -37,17 +37,22 @@ copy .env.example .env
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/projects` | Create project from an idea |
+| GET | `/api/projects` | List recent projects (newest first, limit 20) |
 | GET | `/api/projects/{id}` | Project summary |
 | POST | `/api/projects/{id}/chat` | Requirement chat (agent updates structured requirements) |
+| GET | `/api/projects/{id}/chat` | Full chat history (chronological) |
 | GET | `/api/projects/{id}/requirements` | Requirement state + completion |
 | POST | `/api/projects/{id}/requirements/finalize` | Render `requirements.md`, set `REQUIREMENT_READY` |
-| POST | `/api/projects/{id}/generate` | Start pipeline (background), `202` |
+| POST | `/api/projects/{id}/generate` | Start pipeline (background), `202`. Also allowed from `FAILED` to retry |
 | GET | `/api/projects/{id}/status` | State machine status + per-step states |
 | GET | `/api/projects/{id}/artifacts` | Persisted artifacts (requirements, architecture, review, test) |
 | GET | `/api/projects/{id}/source` | ZIP of generated workspace |
 | GET | `/health` | Liveness |
 
 JSON uses camelCase (`missingFields`, `currentStep`, …).
+
+CORS is enabled for the origins in `CORS_ORIGINS` (default `http://localhost:5173`,
+`http://localhost:5174`) so the SPA can call the API directly in development.
 
 ## Data model (MongoDB)
 

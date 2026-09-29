@@ -129,13 +129,6 @@ def test_qa_404_matrix(client, method, path_template, needs_body):
 
 
 @pytest.mark.parametrize("project_id", [UNKNOWN_ID, MALFORMED_ID])
-@pytest.mark.xfail(
-    reason=(
-        "QA-DEF-1 candidate: generate route resolves project outside _guard; "
-        "unknown/malformed id likely 500 instead of 404"
-    ),
-    strict=False,
-)
 def test_qa_generate_unknown_id_returns_404(project_id):
     with TestClient(
         create_app(db=AsyncMongoMockClient()["aladdin_qa"]), raise_server_exceptions=False

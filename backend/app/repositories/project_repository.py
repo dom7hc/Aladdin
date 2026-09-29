@@ -55,6 +55,10 @@ class ProjectRepository:
     async def get(self, project_id: str) -> dict[str, Any] | None:
         return await self.collection.find_one({"_id": self.parse_id(project_id)})
 
+    async def list_recent(self, limit: int = 20) -> list[dict[str, Any]]:
+        cursor = self.collection.find({}).sort("updated_at", -1).limit(limit)
+        return list(await cursor.to_list(length=limit))
+
     async def get_or_raise(self, project_id: str) -> dict[str, Any]:
         project = await self.get(project_id)
         if project is None:

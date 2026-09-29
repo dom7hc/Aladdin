@@ -21,6 +21,7 @@ from app.agents.stubs import (
 from app.repositories.project_repository import ProjectNotFoundError
 from app.schemas.project import (
     ArtifactResponse,
+    ChatMessageResponse,
     ChatRequest,
     ChatResponse,
     FinalizeResponse,
@@ -62,6 +63,13 @@ async def create_project(
     return await service.create(payload.idea)
 
 
+@router.get("", response_model=list[ProjectResponse])
+async def list_projects(
+    service: Annotated[ProjectService, Depends(get_project_service)],
+) -> list[ProjectResponse]:
+    return await service.list_projects()
+
+
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: str,
@@ -77,6 +85,14 @@ async def chat(
     service: Annotated[ProjectService, Depends(get_project_service)],
 ) -> ChatResponse:
     return await _guard(project_id, service.chat(project_id, payload.message))
+
+
+@router.get("/{project_id}/chat", response_model=list[ChatMessageResponse])
+async def chat_history(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+) -> list[ChatMessageResponse]:
+    return await _guard(project_id, service.chat_history(project_id))
 
 
 @router.get("/{project_id}/requirements", response_model=RequirementStateResponse)
@@ -104,11 +120,13 @@ async def generate(
     generation: Annotated[PocGenerationService, Depends(get_generation_service)],
 ) -> GenerateResponse:
     project = await _guard(project_id, service.get(project_id))
-    if project.status != "REQUIREMENT_READY":
+    if project.status not in {"REQUIREMENT_READY", "FAILED"}:
         raise HTTPException(
             status_code=409,
-            detail=f"Project is {project.status}; generate requires REQUIREMENT_READY.",
+            detail=(f"Project is {project.status}; generate requires REQUIREMENT_READY or FAILED."),
         )
+    if project.status == "FAILED":
+        await _guard(project_id, service.reset_for_retry(project_id))
     background.add_task(generation.generate, project_id)
     return GenerateResponse(project_id=project_id, status="STARTED")
 

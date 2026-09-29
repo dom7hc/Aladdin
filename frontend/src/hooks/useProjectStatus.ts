@@ -32,8 +32,10 @@ export function useStartGeneration(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => startGeneration(id),
-    onSuccess: (status) => {
-      queryClient.setQueryData(queryKeys.status(id), status)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.status(id) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(id) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     },
   })
 }
