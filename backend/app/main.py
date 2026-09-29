@@ -8,11 +8,12 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.api.health import router as health_router
 from app.api.projects import router as projects_router
-from app.config import MONGO_TIMEOUT_MS, MONGODB_DB, MONGODB_URI
+from app.config import CORS_ORIGINS, MONGO_TIMEOUT_MS, MONGODB_DB, MONGODB_URI
 
 logging.basicConfig(level=logging.INFO)
 
@@ -34,6 +35,13 @@ def create_app(db=None) -> FastAPI:
         client.close()
 
     app = FastAPI(title="AI PoC Builder", version="0.1.0", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.include_router(health_router)
     app.include_router(projects_router)
     return app

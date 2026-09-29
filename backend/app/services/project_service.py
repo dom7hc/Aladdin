@@ -10,6 +10,7 @@ from app.generation import renderer
 from app.repositories.message_repository import MessageRepository
 from app.repositories.project_repository import ProjectRepository
 from app.schemas.project import (
+    ChatMessageResponse,
     ChatResponse,
     ProjectResponse,
     RequirementStateResponse,
@@ -59,6 +60,13 @@ class ProjectService:
         project = await self.repo.get_or_raise(project_id)
         return ProjectResponse.model_validate(ProjectRepository.serialize(project))
 
+    async def list_projects(self, limit: int = 20) -> list[ProjectResponse]:
+        projects = await self.repo.list_recent(limit)
+        return [
+            ProjectResponse.model_validate(ProjectRepository.serialize(project))
+            for project in projects
+        ]
+
     async def chat(self, project_id: str, message: str) -> ChatResponse:
         project = await self.repo.get_or_raise(project_id)
         if project["status"] != "REQUIREMENT_COLLECTION":
@@ -77,6 +85,20 @@ class ProjectService:
             missing_fields=turn.missing_fields,
             ready=turn.ready,
         )
+
+    async def chat_history(self, project_id: str) -> list[ChatMessageResponse]:
+        await self.repo.get_or_raise(project_id)
+        docs = await self.messages.history(project_id)
+        return [
+            ChatMessageResponse(
+                id=str(doc["_id"]),
+                project_id=doc["project_id"],
+                role=doc["role"],
+                content=doc["content"],
+                created_at=doc["created_at"],
+            )
+            for doc in docs
+        ]
 
     async def requirements(self, project_id: str) -> RequirementStateResponse:
         project = await self.repo.get_or_raise(project_id)
@@ -119,7 +141,24 @@ class ProjectService:
             "currentStep": project.get("current_step"),
             "completion": completion,
             "steps": steps,
+            "message": project.get("error"),
         }
+
+    async def reset_for_retry(self, project_id: str) -> None:
+        """Clear a failed run so the pipeline can start again from scratch."""
+        project = await self.repo.get_or_raise(project_id)
+        steps = {key: "PENDING" for key in project["steps"]}
+        await self.repo.update_fields(
+            project_id,
+            {
+                "status": "REQUIREMENT_READY",
+                "current_step": None,
+                "completion": 100,
+                "steps": steps,
+                "repair_attempts": 0,
+                "error": None,
+            },
+        )
 
     async def artifacts(self, project_id: str) -> list[dict[str, Any]]:
         project = await self.repo.get_or_raise(project_id)

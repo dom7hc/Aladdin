@@ -16,10 +16,9 @@ export interface Project {
   id: string
   name: string
   description: string
-  idea: string
   status: ProjectStatusValue
-  currentStep: string | null
   completion: number
+  currentStep?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -62,12 +61,17 @@ export type ArtifactType =
   | 'TEST_RESULT'
 
 export interface Artifact {
-  id: string
-  projectId: string
+  id?: string
+  projectId?: string
   type: ArtifactType
   version: number
   content?: string
   createdAt: string
+}
+
+export interface FinalizeResult {
+  status: ProjectStatusValue
+  artifactCount: number
 }
 
 export interface ProjectStatus {

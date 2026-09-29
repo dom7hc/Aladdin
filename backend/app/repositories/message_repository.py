@@ -20,3 +20,8 @@ class MessageRepository:
     async def recent(self, project_id: str, limit: int = 20) -> list[dict[str, Any]]:
         cursor = self.collection.find({"project_id": project_id}).sort("_id", -1).limit(limit)
         return list(await cursor.to_list(length=limit))[::-1]
+
+    async def history(self, project_id: str) -> list[dict[str, Any]]:
+        """Full chat history in chronological order."""
+        cursor = self.collection.find({"project_id": project_id}).sort("_id", 1)
+        return list(await cursor.to_list(length=None))

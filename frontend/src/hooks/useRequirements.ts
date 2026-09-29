@@ -39,8 +39,9 @@ export function useFinalizeRequirements(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => finalizeRequirements(id),
-    onSuccess: (project) => {
-      queryClient.setQueryData(queryKeys.project(id), project)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.project(id) })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.requirements(id) })
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     },
   })

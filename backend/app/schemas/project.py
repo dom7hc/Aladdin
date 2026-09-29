@@ -108,6 +108,14 @@ class ChatResponse(RequirementStateResponse):
     message: str
 
 
+class ChatMessageResponse(CamelModel):
+    id: str
+    project_id: str
+    role: str
+    content: str
+    created_at: datetime
+
+
 class ProjectResponse(CamelModel):
     id: str
     name: str
@@ -123,6 +131,7 @@ class StatusResponse(CamelModel):
     current_step: str | None
     completion: int
     steps: dict[str, str]
+    message: str | None = None
 
 
 class FinalizeResponse(CamelModel):

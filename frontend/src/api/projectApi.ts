@@ -1,4 +1,5 @@
 import type {
+  FinalizeResult,
   Project,
   ProjectStatus,
   RequirementData,
@@ -19,14 +20,14 @@ export function createProject(idea: string): Promise<Project> {
   return apiFetch<Project>('/projects', { method: 'POST', body: { idea } })
 }
 
-export function finalizeRequirements(id: string): Promise<Project> {
-  return apiFetch<Project>(`/projects/${id}/requirements/finalize`, {
+export function finalizeRequirements(id: string): Promise<FinalizeResult> {
+  return apiFetch<FinalizeResult>(`/projects/${id}/requirements/finalize`, {
     method: 'POST',
   })
 }
 
-export function startGeneration(id: string): Promise<ProjectStatus> {
-  return apiFetch<ProjectStatus>(`/projects/${id}/generate`, { method: 'POST' })
+export function startGeneration(id: string): Promise<void> {
+  return apiFetch<void>(`/projects/${id}/generate`, { method: 'POST' })
 }
 
 export function getProjectStatus(id: string): Promise<ProjectStatus> {

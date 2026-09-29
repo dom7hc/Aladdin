@@ -55,6 +55,23 @@ VITE_USE_MOCK=false
 VITE_API_PROXY_TARGET=http://localhost:8000
 ```
 
+Then start the full stack:
+
+```bash
+# repo root — MongoDB
+docker compose up -d mongo
+
+# backend (FastAPI + Motor)
+cd backend && .venv/bin/uvicorn app.main:app --reload   # :8000
+
+# frontend
+cd frontend && npm run dev                               # :5173
+```
+
+The Vite dev server proxies `/api` to the backend, so no CORS setup is needed in dev.
+The backend also enables CORS for `http://localhost:5173`/`5174` (see its
+`CORS_ORIGINS`) if you point `VITE_API_BASE_URL` at the API directly.
+
 ## Routes
 
 | Route                          | Screen              |

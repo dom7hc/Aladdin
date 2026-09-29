@@ -10,3 +10,12 @@ GENERATED_DIR = os.getenv("GENERATED_DIR", os.path.join(_BACKEND_DIR, "generated
 TEMPLATES_DIR = os.path.join(_BACKEND_DIR, "templates")
 MAX_REPAIR_ATTEMPTS = int(os.getenv("MAX_REPAIR_ATTEMPTS", "3"))
 MONGO_TIMEOUT_MS = int(os.getenv("MONGO_TIMEOUT_MS", "5000"))
+
+# Comma-separated list of allowed browser origins (CORS).
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:5174").split(
+        ","
+    )
+    if origin.strip()
+]

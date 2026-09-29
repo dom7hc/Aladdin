@@ -338,7 +338,10 @@ export function handleMockRequest({ method, path, body }: MockRequest): unknown 
       project.currentStep = null
       ensureRequirementsArtifacts(state, project)
       touchProject(project)
-      return project
+      const artifactCount = (state.artifacts[projectId] ?? []).filter((artifact) =>
+        artifact.type.startsWith('REQUIREMENTS_'),
+      ).length
+      return { status: 'REQUIREMENT_READY', artifactCount }
     }
 
     if (method === 'GET') {
@@ -352,16 +355,25 @@ export function handleMockRequest({ method, path, body }: MockRequest): unknown 
     throw new ApiError(405, 'Method not allowed')
   }
 
-  // /projects/:id/generate
+  // /projects/:id/generate — mirrors backend 202 {projectId, status}
   if (sub === 'generate' && method === 'POST') {
-    const generation = state.generation[projectId] ?? { startedAt: null, fail: false }
-    if (generation.startedAt === null) {
-      generation.startedAt = Date.now()
-      state.generation[projectId] = generation
-      project.status = 'ARCHITECTING'
-      touchProject(project)
+    if (!['REQUIREMENT_READY', 'FAILED'].includes(project.status)) {
+      throw new ApiError(
+        409,
+        `Project is ${project.status}; generate requires REQUIREMENT_READY or FAILED.`,
+      )
     }
-    return computeStatus(state, project)
+    if (project.status === 'FAILED') {
+      project.status = 'REQUIREMENT_READY'
+      project.completion = 100
+      project.currentStep = null
+    }
+    const generation = state.generation[projectId] ?? { startedAt: null, fail: false }
+    generation.startedAt = Date.now()
+    state.generation[projectId] = generation
+    project.status = 'ARCHITECTING'
+    touchProject(project)
+    return { projectId, status: 'STARTED' }
   }
 
   // /projects/:id/status
@@ -395,7 +407,6 @@ export function createProject(idea: string): Project {
     id: newId(),
     name,
     description: idea.trim(),
-    idea: idea.trim(),
     status: 'REQUIREMENT_COLLECTION',
     currentStep: 'REQUIREMENTS',
     completion: 0,

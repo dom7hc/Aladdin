@@ -25,6 +25,10 @@ const ARTIFACT_META: Record<ArtifactType, { label: string; icon: string; group: 
 
 const GROUP_ORDER = ['Requirements', 'Architecture', 'Review', 'Tests']
 
+function artifactKey(artifact: Artifact): string {
+  return `${artifact.type}-${artifact.version}`
+}
+
 function groupScore(artifacts: Artifact[], types: ArtifactType[]): 'pass' | 'pending' {
   return types.every((type) => artifacts.some((artifact) => artifact.type === type))
     ? 'pass'
@@ -34,7 +38,7 @@ function groupScore(artifacts: Artifact[], types: ArtifactType[]): 'pass' | 'pen
 export function ResultPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [activeArtifactId, setActiveArtifactId] = useState<string | null>(null)
+  const [activeArtifactKey, setActiveArtifactKey] = useState<string | null>(null)
 
   const projectQuery = useProjectQuery(id)
   const artifactsQuery = useArtifactsQuery(id)
@@ -55,7 +59,7 @@ export function ResultPage() {
   )
 
   const activeArtifact =
-    artifacts.find((artifact) => artifact.id === activeArtifactId) ?? artifacts[0]
+    artifacts.find((artifact) => artifactKey(artifact) === activeArtifactKey) ?? artifacts[0]
 
   if (projectQuery.isError || artifactsQuery.isError) {
     return (
@@ -220,12 +224,14 @@ export function ResultPage() {
                       ) : (
                         items.map((artifact) => {
                           const meta = ARTIFACT_META[artifact.type]
-                          const isActive = activeArtifact?.id === artifact.id
+                          const isActive =
+                            activeArtifact !== undefined &&
+                            artifactKey(activeArtifact) === artifactKey(artifact)
                           return (
                             <button
-                              key={artifact.id}
+                              key={artifactKey(artifact)}
                               type="button"
-                              onClick={() => setActiveArtifactId(artifact.id)}
+                              onClick={() => setActiveArtifactKey(artifactKey(artifact))}
                               className={cn(
                                 'flex items-center justify-between rounded-lg border px-3 py-2.5 text-left text-xs transition-all',
                                 isActive
