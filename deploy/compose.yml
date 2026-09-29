@@ -1,0 +1,67 @@
+# Deployment stack for one environment. Every value that differs between
+# development and production arrives through the environment, so this file
+# is never edited at deploy time.
+#
+# Required: IMAGE_TAG, DEPLOY_ENV, COMPOSE_PROJECT_NAME, MONGO_DATABASE,
+#           PUBLIC_PORT, AZURE_REGISTRY
+# Supplied by /opt/aladdin/<env>/runtime.env on the VM (never in Git).
+
+services:
+  frontend:
+    image: ${AZURE_REGISTRY}.azurecr.io/aladdin-frontend:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    # The only port published to the host; backend and mongo stay internal.
+    # Bound on all interfaces so the NSG is what limits external reach
+    # (production 80, development 8080). Health checks still use 127.0.0.1.
+    ports:
+      - "${PUBLIC_PORT}:80"
+    healthcheck:
+      # 127.0.0.1, not localhost: nginx listens on IPv4 only, and busybox
+      # wget resolves localhost to ::1 first, which is refused.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    image: ${AZURE_REGISTRY}.azurecr.io/aladdin-backend:${IMAGE_TAG}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DB: ${MONGO_DATABASE}
+      GENERATED_DIR: /var/lib/aladdin/generated
+      DEPLOY_ENV: ${DEPLOY_ENV}
+    volumes:
+      # Generated PoC source exists only on disk and is not mirrored into
+      # Mongo, so losing it would leave READY projects with broken downloads.
+      - generated:/var/lib/aladdin/generated
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # No published ports: reachable only on the project network.
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  mongo-data:
+  generated:

@@ -1,0 +1,9 @@
+* text=auto
+
+# Files consumed by Linux shells and Docker must keep LF regardless of the
+# platform they are edited on; a CR in a shebang breaks execution on the VM.
+*.sh        text eol=lf
+Dockerfile  text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+nginx.conf  text eol=lf
