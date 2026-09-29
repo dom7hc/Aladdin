@@ -36,7 +36,7 @@ jobs:
             echo "deploy_env=production"     >>"$GITHUB_OUTPUT"
             echo "compose_project=aladdin-prod" >>"$GITHUB_OUTPUT"
             echo "mongo_database=aladdin_prod"  >>"$GITHUB_OUTPUT"
-            echo "public_port=80"            >>"$GITHUB_OUTPUT"
+            echo "public_port=8081"          >>"$GITHUB_OUTPUT"
           else
             echo "deploy_env=development"    >>"$GITHUB_OUTPUT"
             echo "compose_project=aladdin-dev"  >>"$GITHUB_OUTPUT"
