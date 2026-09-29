@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
 import { useCreateProject, useProjectsQuery } from '@/hooks/useProjects'
+import { STATUS_META } from '@/lib/status'
+import type { ProjectStatusValue } from '@/types'
 
 const SUGGESTIONS = [
   'An AI app that analyzes PDF invoices, extracts line items, and flags anomalies.',
@@ -14,28 +16,61 @@ const SUGGESTIONS = [
   'A dashboard that clusters customer feedback and summarizes sentiment trends.',
 ]
 
+const STATUS_ORDER: ProjectStatusValue[] = [
+  'CREATED',
+  'REQUIREMENT_COLLECTION',
+  'REQUIREMENT_READY',
+  'ARCHITECTING',
+  'ARCHITECTURE_READY',
+  'GENERATING',
+  'REVIEWING',
+  'TESTING',
+  'READY',
+  'FAILED',
+]
+
+type SortKey = 'status' | 'name' | 'createdAt'
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'status', label: 'Sort: Status' },
+  { value: 'name', label: 'Sort: Name' },
+  { value: 'createdAt', label: 'Sort: Newest' },
+]
+
+const SELECT_CLASS =
+  'h-10 w-full appearance-none rounded-lg border border-outline-variant/80 bg-surface-container-lowest pl-9 pr-8 text-body-sm text-on-surface outline-none transition-all focus:border-primary focus:ring-1 focus:ring-primary/40'
+
 export function HomePage() {
   const navigate = useNavigate()
   const [idea, setIdea] = useState('')
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<ProjectStatusValue | 'ALL'>('ALL')
+  const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const createProject = useCreateProject()
 
   const projectsQuery = useProjectsQuery()
 
+  const readyCount = (projectsQuery.data ?? []).filter(
+    (project) => project.status === 'READY',
+  ).length
+
   const projects = useMemo(() => {
     const list = projectsQuery.data ?? []
     const term = search.trim().toLowerCase()
-    if (!term) return list
-    return list.filter(
-      (project) =>
+    const filtered = list.filter((project) => {
+      const matchesTerm =
+        !term ||
         project.name.toLowerCase().includes(term) ||
-        project.description.toLowerCase().includes(term),
-    )
-  }, [projectsQuery.data, search])
-
-  const activeCount = (projectsQuery.data ?? []).filter(
-    (project) => !['READY', 'FAILED'].includes(project.status),
-  ).length
+        project.description.toLowerCase().includes(term)
+      const matchesStatus = statusFilter === 'ALL' || project.status === statusFilter
+      return matchesTerm && matchesStatus
+    })
+    return [...filtered].sort((a, b) => {
+      if (sortKey === 'name') return a.name.localeCompare(b.name)
+      if (sortKey === 'createdAt') return b.createdAt.localeCompare(a.createdAt)
+      return STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
+    })
+  }, [projectsQuery.data, search, statusFilter, sortKey])
 
   const submit = () => {
     const trimmed = idea.trim()
@@ -63,7 +98,7 @@ export function HomePage() {
           <p className="mb-8 max-w-lg text-center text-body-lg text-on-surface-variant">
             Describe what you want to build. AI turns your requirements into interactive
             prototypes.
-          </p>FF
+          </p>
 
           <div className="group relative w-full">
             <div className="absolute -inset-0.5 -z-10 rounded-2xl bg-gradient-to-r from-primary/20 via-tertiary/10 to-secondary/20 blur-sm transition-opacity duration-300 group-focus-within:opacity-100 sm:opacity-40" />
@@ -81,25 +116,7 @@ export function HomePage() {
                 placeholder="Describe the application, data inputs, and desired workflow..."
                 className="w-full resize-none border-none bg-transparent p-2 text-body-md text-on-surface outline-none placeholder:text-outline/70"
               />
-              <div className="mt-2 flex items-center justify-between border-t border-outline-variant/40 pt-3">
-                <button
-                  type="button"
-                  disabled={createProject.isPending}
-                  onClick={() => {
-                    const next = idea.trim()
-                    if (!next) {
-                      setIdea(SUGGESTIONS[0])
-                      return
-                    }
-                    setIdea(
-                      `${next} Include role-based access, automated alerts for risk triggers, and synthetic mock datasets.`,
-                    )
-                  }}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-label-md text-on-surface-variant transition-colors hover:bg-surface-container hover:text-secondary disabled:opacity-60"
-                >
-                  <MaterialIcon name="auto_awesome" size={18} />
-                  <span className="hidden sm:inline">Enhance prompt</span>
-                </button>
+              <div className="mt-2 flex items-center justify-end border-t border-outline-variant/40 pt-3">
                 <Button
                   onClick={submit}
                   loading={createProject.isPending}
@@ -140,25 +157,76 @@ export function HomePage() {
                   Recent Projects
                 </h2>
                 <span className="rounded-full border border-outline-variant/50 bg-surface-container-high px-2.5 py-0.5 text-[11px] font-semibold text-primary-fixed">
-                  {activeCount} active
+                  {readyCount} ready
                 </span>
               </div>
               <p className="text-body-sm text-on-surface-variant">
                 Review specs, resume sessions, or launch live prototypes.
               </p>
             </div>
-            <div className="relative flex items-center">
-              <MaterialIcon
-                name="search"
-                size={18}
-                className="absolute left-3 text-outline"
-              />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search PoCs..."
-                className="h-10 w-full rounded-lg border border-outline-variant/80 bg-surface-container-lowest pl-9 pr-3 text-body-sm text-on-surface outline-none transition-all placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/40 sm:w-64"
-              />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex items-center">
+                <MaterialIcon
+                  name="filter_list"
+                  size={16}
+                  className="pointer-events-none absolute left-3 text-outline"
+                />
+                <select
+                  value={statusFilter}
+                  onChange={(event) =>
+                    setStatusFilter(event.target.value as ProjectStatusValue | 'ALL')
+                  }
+                  className={`${SELECT_CLASS} sm:w-44`}
+                >
+                  <option value="ALL">All statuses</option>
+                  {STATUS_ORDER.map((status) => (
+                    <option key={status} value={status}>
+                      {STATUS_META[status].label}
+                    </option>
+                  ))}
+                </select>
+                <MaterialIcon
+                  name="expand_more"
+                  size={16}
+                  className="pointer-events-none absolute right-3 text-outline"
+                />
+              </div>
+              <div className="relative flex items-center">
+                <MaterialIcon
+                  name="sort"
+                  size={16}
+                  className="pointer-events-none absolute left-3 text-outline"
+                />
+                <select
+                  value={sortKey}
+                  onChange={(event) => setSortKey(event.target.value as SortKey)}
+                  className={`${SELECT_CLASS} sm:w-40`}
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <MaterialIcon
+                  name="expand_more"
+                  size={16}
+                  className="pointer-events-none absolute right-3 text-outline"
+                />
+              </div>
+              <div className="relative flex items-center">
+                <MaterialIcon
+                  name="search"
+                  size={18}
+                  className="absolute left-3 text-outline"
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search PoCs..."
+                  className="h-10 w-full rounded-lg border border-outline-variant/80 bg-surface-container-lowest pl-9 pr-3 text-body-sm text-on-surface outline-none transition-all placeholder:text-outline focus:border-primary focus:ring-1 focus:ring-primary/40 sm:w-64"
+                />
+              </div>
             </div>
           </div>
 
@@ -180,9 +248,13 @@ export function HomePage() {
           ) : projects.length === 0 ? (
             <div className="glass-card flex flex-col items-center gap-2 px-6 py-12 text-center">
               <MaterialIcon name="auto_awesome" size={30} className="text-secondary" />
-              <p className="text-on-surface">No PoCs yet</p>
+              <p className="text-on-surface">
+                {(projectsQuery.data ?? []).length === 0 ? 'No PoCs yet' : 'No matching PoCs'}
+              </p>
               <p className="text-sm text-on-surface-variant">
-                Describe an idea above and the Genie will start building.
+                {(projectsQuery.data ?? []).length === 0
+                  ? 'Describe an idea above and the Genie will start building.'
+                  : 'Try a different search term or status filter.'}
               </p>
             </div>
           ) : (
