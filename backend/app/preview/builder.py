@@ -1,10 +1,13 @@
-"""Preview deployment of a generated PoC on the local Docker daemon.
+"""Preview deployment of a generated PoC on the host Docker daemon.
 
 The generated workspace ships a `deploy/` directory (Dockerfiles + compose
 file) from the platform template, so every PoC is self-hostable: the builder
-runs `docker compose up -d --build` against the workspace and returns the
-published port. Requires the Docker socket to be available to this process
-(mounted in the local stack; not enabled on the deployed VM yet).
+runs `docker compose up -d --build` against the workspace and returns the slot
+it was published on.
+
+Requires the Docker socket to be mounted, which deploy/compose.yml does for
+both the local and deployed stacks. That is root-equivalent on the host, so the
+site sits behind the access gate in deploy/caddy/Caddyfile.
 """
 
 import asyncio
@@ -12,8 +15,6 @@ import logging
 import socket
 import subprocess
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -85,6 +86,11 @@ def pick_slot(occupied: set[int] | None = None) -> int:
     )
 
 
+def project_name(project_id: str) -> str:
+    """Compose project name for a PoC preview stack."""
+    return f"aladdin-poc-{project_id[:8]}"
+
+
 def compose_file(source_dir: Path) -> Path:
     path = source_dir / "deploy" / "compose.yml"
     if not path.is_file():
@@ -102,7 +108,7 @@ def stack_up(source_dir: Path, project_id: str, port: int) -> dict[str, Any]:
         "docker",
         "compose",
         "-p",
-        f"aladdin-poc-{project_id[:8]}",
+        project_name(project_id),
         "--env-file",
         _write_env(source_dir, port),
         "-f",
@@ -129,7 +135,7 @@ def stack_up(source_dir: Path, project_id: str, port: int) -> dict[str, Any]:
 
 def stack_down(project_id: str, source_dir: Path | None = None) -> None:
     """Stop and remove the PoC preview stack (and its volumes)."""
-    args = ["docker", "compose", "-p", f"aladdin-poc-{project_id[:8]}"]
+    args = ["docker", "compose", "-p", project_name(project_id)]
     if source_dir is not None and compose_file(source_dir).is_file():
         args += [
             "--env-file",
@@ -146,16 +152,40 @@ def stack_down(project_id: str, source_dir: Path | None = None) -> None:
         raise PreviewError(_trim(result.stderr or "docker compose down failed"))
 
 
-def wait_healthy(port: int) -> bool:
-    """Poll the published PoC health endpoint until it answers or time runs out."""
-    url = f"http://{config.PREVIEW_HEALTH_HOST}:{port}/health"
+def wait_healthy(project_id: str) -> bool:
+    """Poll the PoC's own /health until it answers or time runs out.
+
+    Probed from a throwaway container on the PoC's compose network rather than
+    through the published host port. The stack binds its port to 127.0.0.1 so
+    that only the reverse proxy can reach it, and a loopback-bound host port is
+    not reachable from this container on Linux (nor portably on Docker
+    Desktop). The PoC network is, and it answers the same nginx that the proxy
+    will forward to.
+    """
+    network = f"{project_name(project_id)}_default"
+    url = "http://poc-frontend:80/health"
     deadline = time.monotonic() + config.PREVIEW_HEALTH_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=3) as response:
-                if response.status == 200:
-                    return True
-        except (urllib.error.URLError, OSError):
+            probe = _run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--network",
+                    network,
+                    config.PREVIEW_PROBE_IMAGE,
+                    "wget",
+                    "--quiet",
+                    "--tries=1",
+                    "--output-document=/dev/null",
+                    url,
+                ],
+                30,
+            )
+            if probe.returncode == 0:
+                return True
+        except (OSError, subprocess.SubprocessError):
             pass
         time.sleep(3)
     return False
@@ -191,12 +221,12 @@ async def build_and_start(project_id: str, occupied: set[int] | None = None) -> 
     slot = await asyncio.to_thread(pick_slot, occupied)
     port = slot_port(slot)
     await asyncio.to_thread(stack_up, source_dir, project_id, port)
-    healthy = await asyncio.to_thread(wait_healthy, port)
+    healthy = await asyncio.to_thread(wait_healthy, project_id)
     if not healthy:
         # Leaving a half-started stack behind would hold the slot forever.
         try:
             await asyncio.to_thread(stack_down, project_id, source_dir)
         except PreviewError:
             logger.warning("Could not tear down unhealthy preview for %s", project_id)
-        raise PreviewError(f"Preview containers are up but /health never answered on port {port}")
+        raise PreviewError(f"Preview containers started on slot {slot} but /health never answered")
     return slot

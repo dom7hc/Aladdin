@@ -57,10 +57,10 @@ LLM_THINKING = os.getenv("LLM_THINKING", "disabled")
 PREVIEW_PORT_BASE = int(os.getenv("PREVIEW_PORT_BASE", "8200"))
 PREVIEW_SLOTS = int(os.getenv("PREVIEW_SLOTS", "6"))
 PREVIEW_PUBLIC_PORT_BASE = int(os.getenv("PREVIEW_PUBLIC_PORT_BASE", "9000"))
-# Host the backend uses to reach preview ports published on the host. On Linux
-# this resolves only because the backend service declares
-# extra_hosts: host.docker.internal:host-gateway.
-PREVIEW_HEALTH_HOST = os.getenv("PREVIEW_HEALTH_HOST", "host.docker.internal")
+# Previews are health-checked from a throwaway container on the PoC's own
+# compose network, because the stack binds its port to loopback and that is not
+# reachable from this container. Any image with busybox wget will do.
+PREVIEW_PROBE_IMAGE = os.getenv("PREVIEW_PROBE_IMAGE", "alpine:3")
 PREVIEW_HEALTH_TIMEOUT_SECONDS = float(os.getenv("PREVIEW_HEALTH_TIMEOUT_SECONDS", "90"))
 # How long a preview stays up before the reaper stops it.
 PREVIEW_TTL_SECONDS = float(os.getenv("PREVIEW_TTL_SECONDS", "3600"))

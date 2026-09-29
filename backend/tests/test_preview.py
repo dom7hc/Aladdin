@@ -177,29 +177,41 @@ async def test_successful_build_flow_records_slot(db, monkeypatch):
     assert stopped["slot"] is None
 
 
-def test_wait_healthy_true_and_false(monkeypatch):
-    import urllib.error
+def test_wait_healthy_probes_the_poc_network(monkeypatch):
+    """The probe must run on the PoC's own network, not the published port.
 
-    def ok(url, timeout):
-        from contextlib import contextmanager
+    The stack binds its host port to loopback so only the reverse proxy can
+    reach it, which is unreachable from this container.
+    """
+    from subprocess import CompletedProcess
 
-        @contextmanager
-        def resp():
-            from types import SimpleNamespace
+    captured = {}
 
-            yield SimpleNamespace(status=200)
+    def ok(args, timeout):
+        captured["args"] = args
+        return CompletedProcess(args, 0, stdout="", stderr="")
 
-        return resp()  # urllib.request.urlopen returns a context manager
-
-    monkeypatch.setattr(builder.urllib.request, "urlopen", ok)
+    monkeypatch.setattr(builder, "_run", ok)
     monkeypatch.setattr(builder.config, "PREVIEW_HEALTH_TIMEOUT_SECONDS", 1)
-    assert builder.wait_healthy(8200) is True
+    assert builder.wait_healthy(PROJECT_ID) is True
 
-    def boom(url, timeout):
-        raise urllib.error.URLError("refused")
+    args = captured["args"]
+    assert f"{builder.project_name(PROJECT_ID)}_default" in args
+    assert "http://poc-frontend:80/health" in args
+    # Probing a host port would mean the preview was never actually verified.
+    assert not any("127.0.0.1" in str(a) or "host.docker.internal" in str(a) for a in args)
 
-    monkeypatch.setattr(builder.urllib.request, "urlopen", boom)
-    assert builder.wait_healthy(8200) is False
+
+def test_wait_healthy_false_when_probe_never_succeeds(monkeypatch):
+    from subprocess import CompletedProcess
+
+    monkeypatch.setattr(
+        builder,
+        "_run",
+        lambda args, timeout: CompletedProcess(args, 1, stdout="", stderr="refused"),
+    )
+    monkeypatch.setattr(builder.config, "PREVIEW_HEALTH_TIMEOUT_SECONDS", 1)
+    assert builder.wait_healthy(PROJECT_ID) is False
 
 
 async def test_start_rejects_when_all_slots_busy(db, monkeypatch):
