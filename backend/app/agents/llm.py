@@ -289,7 +289,17 @@ class LlmDeveloperAgent(DeveloperAgent):
                 f"{MAX_GENERATED_FILES} files and at most 120 lines per file; write "
                 "tersely, no markdown fences inside content, no comments beyond "
                 "one line where essential, no TODO placeholders, and emit valid "
-                "JSON (escape newlines inside strings).",
+                "JSON (escape newlines inside strings). TYPE SAFETY: never use "
+                "the React namespace (React.FC, React.ReactNode, ...) without "
+                "importing React; prefer plain TypeScript types for props and "
+                "state. API CONSISTENCY: the "
+                "backend MUST implement every /api endpoint the frontend calls "
+                "(fetch paths and FastAPI routes must match exactly), so decide "
+                "the endpoint list up front and reuse it on both sides. UI "
+                "QUALITY: make the page presentable — add a small "
+                "frontend/src/styles.css (imported from main.tsx) with a card "
+                "layout, consistent spacing, readable font sizes and styled "
+                "buttons/forms; no external UI libraries.",
                 json.dumps(
                     {
                         "requirements": requirements,

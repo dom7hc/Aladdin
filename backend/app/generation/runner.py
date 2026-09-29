@@ -12,7 +12,10 @@ import os
 import shutil
 import sys
 import time
+from pathlib import Path
 from typing import Any
+
+from app.generation.contract import check_api_contract
 
 COMMAND_TIMEOUT_SECONDS = 300
 # Command output is embedded in TEST_RESULT artifacts, so it is capped to keep
@@ -101,6 +104,7 @@ CATEGORY_BY_STEP = {
     "pipInstall": "DEPENDENCY_INSTALL",
     "compile": "COMPILE_ERROR",
     "pytest": "TEST_FAILURE",
+    "apiContract": "API_CONTRACT",
     "npmInstall": "BUILD_ERROR",
     "npmBuild": "BUILD_ERROR",
 }
@@ -170,6 +174,14 @@ async def run_test_battery(
             steps.append(_skipped("pytest", "pytest is not installed in this environment"))
     else:
         steps.append(_skipped("pytest", "pytest check disabled (TESTER_RUN_PYTEST=false)"))
+
+    # Functional check (Plan §8): every /api path the generated frontend calls
+    # must exist in the generated backend, otherwise the PoC 404s at runtime.
+    source = Path(source_dir)
+    record = _step("apiContract", check_api_contract(source))
+    steps.append(record)
+    if record["status"] == "FAILED":
+        return steps
 
     if run_npm_build:
         if tool_available("npm") is None:

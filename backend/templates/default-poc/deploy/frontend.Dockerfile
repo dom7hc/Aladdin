@@ -12,7 +12,10 @@ COPY frontend/ ./
 # when the AI omitted vite.config.ts/tsconfig.json (they overwrite anything
 # the model generated; generated code uses plain relative imports).
 COPY deploy/frontend/ ./
-RUN npm run build
+# Build with vite directly: esbuild strips TypeScript types without
+# type-checking, so model slips like a missing `import React` (tsc TS2503)
+# cannot break the preview build. `npm run build` would run tsc first.
+RUN npx vite build
 
 
 FROM nginx:1.27-alpine AS runtime

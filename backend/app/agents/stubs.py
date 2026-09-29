@@ -52,6 +52,7 @@ SUGGESTED_FIX_BY_STEP = {
     "DEPENDENCY_INSTALL": "Re-run pip install for the generated backend and inspect requirements.txt.",
     "COMPILE_ERROR": "Fix Python syntax errors in generated backend.",
     "TEST_FAILURE": "Fix the failing tests in the generated backend.",
+    "API_CONTRACT": "Implement every /api route the generated frontend calls in backend/main.py (or remove the calls).",
     "BUILD_ERROR": "Fix the frontend build errors reported by npm.",
     "TOOL_UNAVAILABLE": "Install the missing tool or disable the optional check.",
 }
