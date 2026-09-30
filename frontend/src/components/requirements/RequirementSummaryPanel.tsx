@@ -156,7 +156,7 @@ export function RequirementSummaryPanel({
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-tertiary/40 bg-gradient-to-r from-tertiary/20 via-tertiary/10 to-secondary/20 px-4 py-2.5 text-xs font-semibold text-tertiary-fixed transition-all hover:from-tertiary/30 hover:to-secondary/30 active:scale-95 disabled:cursor-wait disabled:opacity-70"
           >
             <MaterialIcon name="magic_button" size={17} className="text-secondary" />
-            {autofilling ? 'Filling…' : 'Autofill remaining with Alladin best practices'}
+            {autofilling ? 'Filling…' : 'Autofill remaining with Aladdin best practices'}
           </button>
         )}
       </div>

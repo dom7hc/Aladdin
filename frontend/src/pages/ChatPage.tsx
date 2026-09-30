@@ -84,7 +84,7 @@ export function ChatPage() {
   if (projectQuery.isPending || messagesQuery.isPending) {
     return (
       <AppLayout>
-        <LoadingState label="Summoning Alladin…" />
+        <LoadingState label="Summoning Aladdin…" />
       </AppLayout>
     )
   }
@@ -153,7 +153,7 @@ export function ChatPage() {
                     }}
                     rows={2}
                     disabled={sendMessage.isPending}
-                    placeholder="Tell Alladin your specs or answer the questions…"
+                    placeholder="Tell Aladdin your specs or answer the questions…"
                     className="w-full resize-none bg-transparent px-2 py-1.5 text-sm leading-relaxed text-on-surface outline-none placeholder:text-outline disabled:opacity-60"
                   />
                   <div className="mt-1 flex items-center justify-end border-t border-outline-variant/40 pt-2">
@@ -178,7 +178,7 @@ export function ChatPage() {
 
             {sendMessage.isError && (
               <p className="text-sm text-error">
-                Alladin could not respond. Please resend your message.
+                Aladdin could not respond. Please resend your message.
               </p>
             )}
           </div>
@@ -195,7 +195,7 @@ export function ChatPage() {
             />
             {autofill.isError && (
               <p className="text-sm text-error">
-                Alladin could not autofill the sections. Please try again.
+                Aladdin could not autofill the sections. Please try again.
               </p>
             )}
             {finalize.isError && (
@@ -219,7 +219,7 @@ function AssistantMessage({ content, time }: { content: string; time: string }) 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1 text-xs font-bold tracking-wide text-primary">
-            Alladin <span className="text-secondary">✦</span>
+            Aladdin <span className="text-secondary">✦</span>
           </span>
           <span className="text-[11px] text-outline">{time}</span>
         </div>
@@ -266,7 +266,7 @@ function TypingIndicator() {
         ))}
       </div>
       <span className="text-xs font-medium italic text-on-surface-variant">
-        Alladin is weaving requirements into PoC schema…
+        Aladdin is weaving requirements into PoC schema…
       </span>
     </div>
   )
