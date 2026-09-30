@@ -373,9 +373,15 @@ async def test_developer_agent_truncates_overflow_keeping_required(llm_workspace
     files.append({"path": "backend/requirements.txt", "content": "fastapi\n"})
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     written = await agent.run(llm_workspace, {}, VALID_SPEC)
-    # The platform's spec is written on top of the model's budgeted files.
-    assert len(written) == llm.MAX_GENERATED_FILES + 1
-    for required in ("backend/main.py", "backend/requirements.txt", llm.DASHBOARD_SPEC_PATH):
+    # The platform writes the spec and the design tokens on top of the model's
+    # budgeted files.
+    assert len(written) == llm.MAX_GENERATED_FILES + 2
+    for required in (
+        "backend/main.py",
+        "backend/requirements.txt",
+        llm.DASHBOARD_SPEC_PATH,
+        llm.DESIGN_CSS_PATH,
+    ):
         assert required in written
 
 

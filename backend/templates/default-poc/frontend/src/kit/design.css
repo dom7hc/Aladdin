@@ -1,0 +1,49 @@
+/* Generated for this project. Do not edit by hand.
+ *
+ * Palette:  SaaS (General) (saas-general)
+ * Fonts:    Modern Professional — Poppins over Open Sans
+ *
+ * Source: ui-ux-pro-max (MIT) — see the platform's design/data/PROVENANCE.md.
+ * Chart series colours are NOT set here; theme.css owns those because they are
+ * validated for colourblind separation and these brand palettes are not.
+ *
+ * Only light-mode surfaces are overridden. theme.css keeps its dark neutrals,
+ * which are already checked against the series palette; the dark accent below
+ * is derived from the light primary so it stays visible on them.
+ */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400..700&family=Open+Sans:wght@400..700&display=swap");
+
+:root {
+  --surface-0: #FFFFFF;
+  --surface-1: #F8FAFC;
+  --surface-2: #E9EFF8;
+  --ink-1: #1E293B;
+  --ink-2: #475569;
+  --ink-3: #475569;
+  --line: #E2E8F0;
+  --line-soft: #E9EFF8;
+
+  --accent-l: #2563EB;
+  --accent-d: #2563eb;
+  --accent-soft-l: #E9EFF8;
+  --accent-soft-d: #22262e;
+  --accent-ink: #FFFFFF;
+
+  --critical: #DC2626;
+
+  --font-body: "Open Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Poppins", var(--font-body);
+}
+
+body {
+  font-family: var(--font-body);
+}
+
+h1,
+h2,
+h3,
+.shell-title,
+.card-title,
+.tile-value {
+  font-family: var(--font-heading);
+}

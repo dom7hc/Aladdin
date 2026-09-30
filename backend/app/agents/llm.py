@@ -29,6 +29,7 @@ from app.agents.base import (
 )
 from app.agents.stubs import AUTOFILL_DEFAULTS, QUESTION_PER_FIELD, StubRequirementAgent
 from app.catalogue import prompt_guidance
+from app.design import systems as design
 from app.generation import runner
 from app.generation.spec import (
     LAYOUTS,
@@ -50,6 +51,10 @@ MAX_DIAGNOSIS_CHARS = 2_000
 # The only frontend file the generator writes; everything visual is
 # platform-owned in the template's frontend/src/kit/.
 DASHBOARD_SPEC_PATH = "frontend/src/dashboard.config.json"
+
+# Per-project design tokens, written by the platform from the vendored
+# ui-ux-pro-max data. The template ships a default so the import always resolves.
+DESIGN_CSS_PATH = "frontend/src/kit/design.css"
 
 # Files every generated PoC must have. The frontend entry, package.json and the
 # design system all come from the template now, and the platform writes the
@@ -424,7 +429,13 @@ _ARCHITECT_SYSTEM = (
     f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
     "the form by the data's job: a single headline number is a stat, change "
     "over time is a line, comparison across categories is a bar. Never two "
-    "measures of different scale in one chart — use two charts."
+    "measures of different scale in one chart — use two charts.\n"
+    'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>}. '
+    "Pick the palette whose industry is closest to the user's, and a font "
+    "pairing whose audience matches. Omit it if nothing fits — a default is "
+    "used. Chart colours are not yours to choose; they are fixed.\n"
+    f"Palettes:\n{design.choices_for_prompt()}\n"
+    f"Font pairings:\n{design.pairing_choices_for_prompt()}"
 )
 
 
@@ -498,6 +509,10 @@ _DEVELOPER_SYSTEM = (
     "(python sqlite3, stdlib only) that the app creates and seeds "
     "automatically on first start; GET keeps returning the full "
     "list. Non-editable endpoints stay read-only sample data.\n"
+    'Put the database file at os.environ.get("POC_DB", "/data/poc.db") and '
+    "create its parent directory if missing — /data is a mounted volume, so "
+    "records there survive a restart, and the default keeps the project "
+    "runnable outside the preview stack.\n"
     "Never write any frontend file — no CSS, no components, no "
     "index.html. The whole frontend is platform-owned and any "
     "frontend path is rejected.\n"
@@ -583,6 +598,16 @@ class LlmDeveloperAgent(DeveloperAgent):
             json.dumps(architecture, ensure_ascii=False, indent=2) + "\n",
         )
         written.append(DASHBOARD_SPEC_PATH)
+
+        # The look is resolved here, not by the model: an unknown id falls back
+        # to the default rather than failing a generation over cosmetics.
+        chosen = architecture.get("designSystem") or {}
+        system = design.resolve(chosen.get("palette"), chosen.get("fonts"))
+        ws.write_file(project_id, DESIGN_CSS_PATH, design.design_css(system))
+        written.append(DESIGN_CSS_PATH)
+        logger.info(
+            "Project %s styled with %s / %s", project_id, system.palette.id, system.fonts.id
+        )
 
         missing = MINIMAL_FILES - set(ws.list_files(project_id))
         if missing:
