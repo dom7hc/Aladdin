@@ -16,13 +16,26 @@
 	email dom7hc@bosch.com
 }
 
+(perf) {
+	# Caddy does not compress by default. Without this the platform shipped 363 kB
+	# of uncompressed JavaScript to every visitor, which was painful on mobile.
+	encode zstd gzip
+
+	# Vite fingerprints asset filenames, so a given URL's bytes never change and
+	# can be cached indefinitely. Without this every visit refetched them.
+	@immutable path /assets/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+}
+
 # Production.
 n4s-aladdin.southeastasia.cloudapp.azure.com {
+	import perf
 	reverse_proxy 127.0.0.1:8081
 }
 
 # Development, same certificate, separate port.
 n4s-aladdin.southeastasia.cloudapp.azure.com:8443 {
+	import perf
 	reverse_proxy 127.0.0.1:8080
 }
 
@@ -37,25 +50,31 @@ n4s-aladdin.southeastasia.cloudapp.azure.com:8443 {
 # slot N.
 
 n4s-aladdin.southeastasia.cloudapp.azure.com:9001 {
+	import perf
 	reverse_proxy 127.0.0.1:8201
 }
 
 n4s-aladdin.southeastasia.cloudapp.azure.com:9002 {
+	import perf
 	reverse_proxy 127.0.0.1:8202
 }
 
 n4s-aladdin.southeastasia.cloudapp.azure.com:9003 {
+	import perf
 	reverse_proxy 127.0.0.1:8203
 }
 
 n4s-aladdin.southeastasia.cloudapp.azure.com:9004 {
+	import perf
 	reverse_proxy 127.0.0.1:8204
 }
 
 n4s-aladdin.southeastasia.cloudapp.azure.com:9005 {
+	import perf
 	reverse_proxy 127.0.0.1:8205
 }
 
 n4s-aladdin.southeastasia.cloudapp.azure.com:9006 {
+	import perf
 	reverse_proxy 127.0.0.1:8206
 }
