@@ -56,3 +56,44 @@ def test_requirements_state_endpoint(client, project_id):
     assert state["requirements"]["problem"].startswith("I want an AI application")
     assert len(state["missingFields"]) == 6
     assert state["ready"] is False
+
+
+def test_autofill_fills_remaining_and_becomes_ready(client, project_id):
+    client.post(f"/api/projects/{project_id}/chat", json={"message": "Finance employees"})
+
+    response = client.post(f"/api/projects/{project_id}/requirements/autofill")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is True
+    assert body["missingFields"] == []
+    # The user's own answer is never overwritten by the defaults.
+    assert body["requirements"]["targetUsers"] == ["Finance employees"]
+    assert body["requirements"]["mainWorkflow"]
+    assert body["requirements"]["successCriteria"]
+
+    history = client.get(f"/api/projects/{project_id}/chat").json()
+    assert history[-1]["role"] == "assistant"
+    assert "best-practice" in history[-1]["content"]
+
+    finalized = client.post(f"/api/projects/{project_id}/requirements/finalize")
+    assert finalized.status_code == 200
+
+
+def test_autofill_is_idempotent_when_ready(client, project_id):
+    answer_all_questions(client, project_id)
+    before = client.get(f"/api/projects/{project_id}/chat").json()
+
+    response = client.post(f"/api/projects/{project_id}/requirements/autofill")
+    assert response.status_code == 200
+    assert response.json()["ready"] is True
+
+    after = client.get(f"/api/projects/{project_id}/chat").json()
+    assert len(after) == len(before)  # no extra message on a no-op autofill
+
+
+def test_autofill_after_finalize_is_rejected(client, project_id):
+    answer_all_questions(client, project_id)
+    client.post(f"/api/projects/{project_id}/requirements/finalize")
+
+    response = client.post(f"/api/projects/{project_id}/requirements/autofill")
+    assert response.status_code == 409

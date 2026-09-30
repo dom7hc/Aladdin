@@ -5,6 +5,7 @@ import type {
   ProjectStatus,
   RequirementData,
   RequirementField,
+  RequirementResponse,
 } from '@/types'
 
 import { apiFetch } from './httpClient'
@@ -23,6 +24,12 @@ export function createProject(idea: string): Promise<Project> {
 
 export function finalizeRequirements(id: string): Promise<FinalizeResult> {
   return apiFetch<FinalizeResult>(`/projects/${id}/requirements/finalize`, {
+    method: 'POST',
+  })
+}
+
+export function autofillRequirements(id: string): Promise<RequirementResponse> {
+  return apiFetch<RequirementResponse>(`/projects/${id}/requirements/autofill`, {
     method: 'POST',
   })
 }

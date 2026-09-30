@@ -50,6 +50,12 @@ class RequirementAgent(ABC):
         self, requirements: dict[str, Any], chat: list[dict[str, Any]], message: str
     ) -> RequirementTurn: ...
 
+    @abstractmethod
+    async def autofill(
+        self, requirements: dict[str, Any], chat: list[dict[str, Any]]
+    ) -> RequirementTurn:
+        """Fill remaining missing fields with best-practice suggestions."""
+
 
 class ArchitectAgent(ABC):
     @abstractmethod

@@ -13,6 +13,7 @@ interface RequirementSummaryPanelProps {
   requirements: RequirementData
   completion: number
   onAutofill?: () => void
+  autofilling?: boolean
   onReview?: () => void
   finalizing?: boolean
 }
@@ -38,6 +39,7 @@ export function RequirementSummaryPanel({
   requirements,
   completion,
   onAutofill,
+  autofilling = false,
   onReview,
   finalizing = false,
 }: RequirementSummaryPanelProps) {
@@ -149,11 +151,12 @@ export function RequirementSummaryPanel({
         {!ready && onAutofill && (
           <button
             type="button"
+            disabled={autofilling}
             onClick={onAutofill}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-tertiary/40 bg-gradient-to-r from-tertiary/20 via-tertiary/10 to-secondary/20 px-4 py-2.5 text-xs font-semibold text-tertiary-fixed transition-all hover:from-tertiary/30 hover:to-secondary/30 active:scale-95"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-tertiary/40 bg-gradient-to-r from-tertiary/20 via-tertiary/10 to-secondary/20 px-4 py-2.5 text-xs font-semibold text-tertiary-fixed transition-all hover:from-tertiary/30 hover:to-secondary/30 active:scale-95 disabled:cursor-wait disabled:opacity-70"
           >
             <MaterialIcon name="magic_button" size={17} className="text-secondary" />
-            Autofill remaining with Alladin best practices
+            {autofilling ? 'Filling…' : 'Autofill remaining with Alladin best practices'}
           </button>
         )}
       </div>

@@ -118,6 +118,49 @@ const FLOW: FlowStep[] = [
 export const GREETING =
   'Welcome! Let us shape your PoC. To begin, what problem should this application solve, and what outcome are you hoping for?'
 
+// Mirrors AUTOFILL_DEFAULTS in backend/app/agents/stubs.py — keep both in step.
+// constraints stays unset: it is optional and never blocks readiness.
+export const AUTOFILL_DEFAULTS: Partial<
+  Record<Exclude<keyof RequirementData, 'problem'>, string[]>
+> = {
+  targetUsers: ['Team leads and managers', 'Operations staff', 'Business stakeholders'],
+  mainWorkflow: [
+    'Open the dashboard',
+    'Filter and explore the latest data',
+    'Act on the reported results',
+  ],
+  features: ['KPI overview with charts', 'Filterable record tables', 'Realistic seeded sample data'],
+  inputs: ['Records entered through forms', 'Uploaded or imported data'],
+  outputs: [
+    'Interactive dashboard with KPIs, trends and breakdowns',
+    'Exportable reports',
+  ],
+  successCriteria: [
+    'The dashboard loads populated with sample data',
+    'Every widget renders from a working API endpoint',
+  ],
+}
+
+export function autofillMissing(current: RequirementData): {
+  requirements: RequirementData
+  filledCount: number
+} {
+  const next = { ...current }
+  let filledCount = 0
+  for (const field of Object.keys(AUTOFILL_DEFAULTS) as Exclude<
+    keyof RequirementData,
+    'problem'
+  >[]) {
+    const value = AUTOFILL_DEFAULTS[field]
+    if (!value) continue
+    if (Array.isArray(next[field]) && next[field].length === 0) {
+      next[field] = [...value]
+      filledCount += 1
+    }
+  }
+  return { requirements: next, filledCount }
+}
+
 export interface AdvanceResult {
   requirements: RequirementData
   message: string
