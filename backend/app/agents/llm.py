@@ -354,20 +354,20 @@ class LlmRequirementAgent(RequirementAgent):
 _ARCHITECT_SYSTEM = (
     "You design DASHBOARDS, and nothing else. Whatever the requirements "
     "describe, express it as a dashboard that reports on it: numbers, trends, "
-    "breakdowns, records, status. Never propose chat interfaces, assistants, "
+    "breakdowns and records. Never propose chat interfaces, assistants, "
     "wizards or content editors.\n"
     "Given requirements JSON, answer with STRICT JSON only — the dashboard "
     'spec: {"title", "subtitle", "layout", "widgets": [...], "filters": [...]}.\n'
     f"'layout' is exactly one of {sorted(LAYOUTS)}: kpi-overview for headline "
     "numbers over time, analytics-breakdown to compare a trend against "
-    "categories, operations-monitor for health and alerts, records-workspace "
-    "for browsing and filtering records.\n"
-    'Every widget has "kind" and "endpoint" (a path under /api/). By kind: '
+    "categories, records-workspace for browsing and filtering records.\n"
+    'Every widget has "kind" and "endpoint" (a path under /api/). The only '
+    'kinds are "stat", "line", "bar" and "table". By kind: '
     '"stat" needs label and field, plus optional deltaField and trendField; '
     '"line" needs title, xField and series[{label, field}]; "bar" needs title, '
     'categoryField and series[{label, field}]; "table" needs title and '
-    'columns[{label, field}]; "status" needs title, labelField and levelField '
-    "(values good|warning|serious|critical).\n"
+    "columns[{label, field}]. Status or health-pill widgets are not supported — "
+    "express that data as a stat or a table instead.\n"
     f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
     "the form by the data's job: a single headline number is a stat, change "
     "over time is a line, comparison across categories is a bar. Never two "
@@ -447,7 +447,7 @@ class LlmDeveloperAgent(DeveloperAgent):
                 "uvicorn[standard].\n"
                 "Endpoint payload shapes: a 'stat' endpoint returns one object "
                 "with its field, deltaField and trendField (trend is an array of "
-                "numbers); 'line', 'bar', 'table' and 'status' endpoints return "
+                "numbers); 'line', 'bar' and 'table' endpoints return "
                 "an ARRAY of objects whose keys are exactly the fields the widget "
                 "names. Seed 6-12 rows of realistic sample data in code so the "
                 "dashboard is populated on first load with no database.\n"

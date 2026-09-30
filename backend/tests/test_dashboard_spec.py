@@ -169,3 +169,14 @@ def test_the_status_widget_is_retired_everywhere():
         body = (kit / name).read_text(encoding="utf-8")
         assert "StatusList" not in body, f"{name} still references StatusList"
         assert not re.search(r'kind:\s*"status"', body), f"{name} still declares a status widget"
+
+    # The prompts must not advertise retired concepts either — observed live:
+    # the architect prompt still taught "status" widgets and the
+    # operations-monitor layout, so the model emitted them and validate_spec
+    # failed the whole run.
+    from app.agents.llm import _ARCHITECT_SYSTEM
+
+    assert "operations-monitor" not in _ARCHITECT_SYSTEM
+    assert '"status"' not in _ARCHITECT_SYSTEM
+    for kind in REQUIRED_BY_KIND:
+        assert f'"{kind}"' in _ARCHITECT_SYSTEM, f"prompt no longer teaches kind {kind}"
