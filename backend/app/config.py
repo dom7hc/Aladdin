@@ -36,7 +36,11 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-flash")
 LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
-LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "8192"))
+# 8192 truncated the developer agent on ordinary PoCs — roughly one run in
+# three failed with "LLM output was truncated", which a user sees as a dead
+# FAILED project. The API accepts 32768, and this is a ceiling rather than a
+# target, so raising it costs nothing when the model emits less.
+LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "32768"))
 # Thinking models spend reasoning tokens out of the max_tokens budget; the
 # structured agents do not need deep reasoning. "off" omits the parameter.
 LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
