@@ -122,22 +122,39 @@ def validate_spec(spec: Any) -> list[str]:
     if not any(isinstance(w, dict) and w.get("kind") in _VISUAL_KINDS for w in widgets):
         errors.append("a dashboard needs at least one stat, chart, table or status widget")
 
-    filters = spec.get("filters")
-    if filters is not None:
-        if not isinstance(filters, list):
-            errors.append("'filters' must be an array when present")
-        else:
-            for index, entry in enumerate(filters):
-                if not isinstance(entry, dict):
-                    errors.append(f"filters[{index}] must be an object")
-                    continue
-                if not isinstance(entry.get("field"), str) or not entry["field"].strip():
-                    errors.append(f"filters[{index}] needs a non-empty 'field'")
-                options = entry.get("options")
-                if not isinstance(options, list) or not options:
-                    errors.append(f"filters[{index}] needs a non-empty 'options' array")
-
     return errors
+
+
+def _usable_filter(entry: Any) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    if not isinstance(entry.get("field"), str) or not entry["field"].strip():
+        return False
+    options = entry.get("options")
+    return isinstance(options, list) and bool(options)
+
+
+def prune_filters(spec: dict[str, Any]) -> int:
+    """Drop filters that cannot render, in place. Returns how many went.
+
+    Filters are optional sugar, so a malformed one must not fail a whole
+    generation the way a bad layout or widget does — the model cannot know what
+    values exist in data it has not generated yet, and routinely emits a filter
+    with an empty options list. The dashboard is complete without them.
+    """
+    filters = spec.get("filters")
+    if filters is None:
+        return 0
+    if not isinstance(filters, list):
+        spec.pop("filters", None)
+        return 1
+    keep = [f for f in filters if _usable_filter(f)]
+    dropped = len(filters) - len(keep)
+    if keep:
+        spec["filters"] = keep
+    else:
+        spec.pop("filters", None)
+    return dropped
 
 
 def spec_endpoints(spec: dict[str, Any]) -> set[str]:

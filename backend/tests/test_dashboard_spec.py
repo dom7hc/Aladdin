@@ -1,6 +1,6 @@
 """Dashboard spec validation — the gate between the model and the renderer."""
 
-from app.generation.spec import LAYOUTS, THEMES, spec_endpoints, validate_spec
+from app.generation.spec import LAYOUTS, THEMES, prune_filters, spec_endpoints, validate_spec
 
 GOOD = {
     "title": "Orders",
@@ -96,9 +96,30 @@ def test_empty_and_malformed_specs_are_rejected():
     assert any("title" in e for e in validate_spec({**GOOD, "title": "  "}))
 
 
-def test_filters_need_options():
-    spec = {**GOOD, "filters": [{"label": "Region", "field": "region", "options": []}]}
-    assert any("options" in e for e in validate_spec(spec))
+def test_unusable_filters_are_pruned_not_fatal():
+    """Observed live: the architect emitted three filters with empty options.
+
+    Failing a whole generation for optional sugar is disproportionate, and the
+    model cannot know what values exist in data it has not generated yet.
+    """
+    spec = {
+        **GOOD,
+        "filters": [
+            {"label": "Region", "field": "region", "options": []},
+            {"label": "Tier", "field": "tier", "options": ["A", "B"]},
+            "not even an object",
+        ],
+    }
+    assert prune_filters(spec) == 2
+    assert spec["filters"] == [{"label": "Tier", "field": "tier", "options": ["A", "B"]}]
+    assert validate_spec(spec) == []
+
+
+def test_filters_key_disappears_when_none_survive():
+    spec = {**GOOD, "filters": [{"field": "region", "options": []}]}
+    assert prune_filters(spec) == 1
+    assert "filters" not in spec
+    assert validate_spec(spec) == []
 
 
 def test_layouts_and_themes_match_the_typescript_kit():

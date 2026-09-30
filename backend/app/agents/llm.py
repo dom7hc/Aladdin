@@ -29,7 +29,14 @@ from app.agents.base import (
 )
 from app.agents.stubs import QUESTION_PER_FIELD
 from app.generation import runner
-from app.generation.spec import LAYOUTS, MAX_SERIES, MAX_WIDGETS, THEMES, validate_spec
+from app.generation.spec import (
+    LAYOUTS,
+    MAX_SERIES,
+    MAX_WIDGETS,
+    THEMES,
+    prune_filters,
+    validate_spec,
+)
 from app.schemas.project import LIST_FIELDS, completion_of, missing_fields
 from app.workspace import workspace as ws
 
@@ -296,6 +303,11 @@ class LlmArchitectAgent(ArchitectAgent):
                 _ARCHITECT_SYSTEM, json.dumps(requirements, ensure_ascii=False)
             )
         )
+        # Filters are optional; a malformed one is dropped rather than failing
+        # the run, since the dashboard is complete without it.
+        dropped = prune_filters(payload)
+        if dropped:
+            logger.info("Dropped %d unusable filter(s) from the dashboard spec", dropped)
         errors = validate_spec(payload)
         if errors:
             raise LLMError("LLM dashboard spec is invalid: " + "; ".join(errors[:6]))
