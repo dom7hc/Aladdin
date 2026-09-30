@@ -176,6 +176,12 @@ function arrange(spec: DashboardSpec, node: (w: Widget) => ReactNode) {
 
 export function Dashboard({ spec }: { spec: DashboardSpec }) {
   const [filters, setFilters] = useState<Record<string, string>>({});
+
+  // index.html is a platform-owned fallback, so its <title> is generic. The
+  // browser tab should name the dashboard, not say "PoC".
+  useEffect(() => {
+    if (spec.title) document.title = spec.title;
+  }, [spec.title]);
   const endpoints = useMemo(
     () => Array.from(new Set(spec.widgets.map((w) => w.endpoint))),
     [spec],

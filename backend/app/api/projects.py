@@ -186,6 +186,20 @@ async def source(
     )
 
 
+@router.get("/{project_id}/deck")
+async def deck(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+) -> Response:
+    """A .pptx presenting the dashboard, for the user to show to their own team."""
+    data = await _guard(project_id, service.deck_pptx(project_id))
+    return Response(
+        content=data,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{project_id}.pptx"'},
+    )
+
+
 def get_preview_service(db: Annotated[AsyncIOMotorDatabase, Depends(get_db)]) -> PreviewService:
     return PreviewService(db)
 

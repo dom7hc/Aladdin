@@ -1,5 +1,6 @@
 """Project use-cases: create, chat, finalize, status, artifacts, source export."""
 
+import json
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -191,6 +192,32 @@ class ProjectService:
             }
             for artifact in project.get("artifacts", [])
         ]
+
+    async def deck_pptx(self, project_id: str) -> bytes:
+        """A .pptx presenting this project's dashboard.
+
+        Built from the stored dashboard spec, so the deck always describes the
+        dashboard that was actually generated.
+        """
+        from app.deck.builder import build_deck
+
+        project = await self.repo.get_or_raise(project_id)
+        spec_json = next(
+            (
+                a.get("content")
+                for a in reversed(project.get("artifacts", []))
+                if a.get("type") == "ARCHITECTURE_JSON"
+            ),
+            None,
+        )
+        if not spec_json:
+            raise InvalidTransitionError("The dashboard has not been designed yet; run generate.")
+        try:
+            spec = json.loads(spec_json)
+        except json.JSONDecodeError as exc:
+            raise InvalidTransitionError("The stored dashboard spec is unreadable.") from exc
+
+        return build_deck(spec, project["requirements"]["content"])
 
     async def source_zip(self, project_id: str) -> bytes:
         await self.repo.get_or_raise(project_id)

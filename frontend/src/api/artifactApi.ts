@@ -9,3 +9,7 @@ export function getArtifacts(id: string): Promise<Artifact[]> {
 export function fetchSourceBundle(id: string): Promise<{ blob: Blob; filename: string }> {
   return apiDownload(`/projects/${id}/source`)
 }
+
+export function fetchDeck(id: string): Promise<{ blob: Blob; filename: string }> {
+  return apiDownload(`/projects/${id}/deck`)
+}

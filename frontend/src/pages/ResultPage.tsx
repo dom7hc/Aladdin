@@ -11,7 +11,7 @@ import { WizardStepper } from '@/components/ui/WizardStepper'
 import { cn } from '@/lib/cn'
 import { formatClockTime } from '@/lib/format'
 import { useProjectQuery } from '@/hooks/useProject'
-import { useArtifactsQuery, useDownloadSource } from '@/hooks/useArtifacts'
+import { useArtifactsQuery, useDownloadDeck, useDownloadSource } from '@/hooks/useArtifacts'
 import { usePreviewQuery, useStartPreview, useStopPreview } from '@/hooks/usePreview'
 import type { Artifact, ArtifactType, PreviewState } from '@/types'
 
@@ -58,6 +58,7 @@ export function ResultPage() {
   const projectQuery = useProjectQuery(id)
   const artifactsQuery = useArtifactsQuery(id)
   const download = useDownloadSource(id ?? '')
+  const deck = useDownloadDeck(id ?? '')
   const previewQuery = usePreviewQuery(id)
   const startPreview = useStartPreview(id)
   const stopPreview = useStopPreview(id)
@@ -244,6 +245,15 @@ export function ResultPage() {
                 className="px-4 py-2 text-xs"
               >
                 Download Project
+              </Button>
+              <Button
+                variant="secondary"
+                icon="slideshow"
+                onClick={() => deck.mutate()}
+                loading={deck.isPending}
+                className="px-4 py-2 text-xs"
+              >
+                Download Slides
               </Button>
               <Button
                 variant="ghost"
