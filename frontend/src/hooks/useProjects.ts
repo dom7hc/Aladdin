@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { createProject, listProjects } from '@/api/projectApi'
+import { createProject, getScenarios, listProjects } from '@/api/projectApi'
 
 import { queryKeys } from './queryKeys'
 
@@ -18,5 +18,14 @@ export function useCreateProject() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     },
+  })
+}
+
+/** The dashboards we offer as starting points. Static, so cache it hard. */
+export function useScenariosQuery() {
+  return useQuery({
+    queryKey: queryKeys.scenarios,
+    queryFn: getScenarios,
+    staleTime: Infinity,
   })
 }

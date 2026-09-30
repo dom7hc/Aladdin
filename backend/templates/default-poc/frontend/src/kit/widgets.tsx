@@ -4,7 +4,6 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Sparkline, formatNumber } from "./charts";
-import type { StatusLevel } from "./types";
 
 export function Card({
   title,
@@ -126,40 +125,6 @@ export function DataTable({
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-const LEVELS: StatusLevel[] = ["good", "warning", "serious", "critical"];
-
-export function StatusList({
-  rows,
-  labelField,
-  levelField,
-  detailField,
-}: {
-  rows: Record<string, unknown>[];
-  labelField: string;
-  levelField: string;
-  detailField?: string;
-}) {
-  if (!rows.length) return <p className="empty">Nothing to report.</p>;
-  return (
-    <div>
-      {rows.map((row, i) => {
-        const raw = String(row[levelField] ?? "").toLowerCase();
-        const level = (LEVELS.find((l) => l === raw) ?? "good") as StatusLevel;
-        return (
-          <div className="status-row" key={i}>
-            <span className={`pill pill-${level}`}>{level}</span>
-            <strong>{String(row[labelField] ?? "")}</strong>
-            <span className="shell-spacer" />
-            {detailField ? (
-              <span className="card-note">{String(row[detailField] ?? "")}</span>
-            ) : null}
-          </div>
-        );
-      })}
     </div>
   );
 }

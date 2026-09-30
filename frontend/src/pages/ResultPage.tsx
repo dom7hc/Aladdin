@@ -24,7 +24,10 @@ const ARTIFACT_META: Record<ArtifactType, { label: string; icon: string; group: 
   TEST_RESULT: { label: 'Test Result', icon: 'bug_report', group: 'Tests' },
 }
 
-const GROUP_ORDER = ['Requirements', 'Architecture', 'Review', 'Tests']
+// Review findings and the test battery are engineering output. The person
+// receiving a dashboard does not need them, and they made the result page read
+// like a build log.
+const GROUP_ORDER = ['Requirements', 'Architecture']
 
 function artifactKey(artifact: Artifact): string {
   return `${artifact.type}-${artifact.version}`
@@ -132,7 +135,7 @@ export function ResultPage() {
             </h1>
             <p className="text-base leading-relaxed text-on-surface-variant">
               Your working prototype has been generated, reviewed and tested. Inspect each
-              artifact or download the project source.
+              artifact, download the project source, or take the slides.
             </p>
           </div>
 

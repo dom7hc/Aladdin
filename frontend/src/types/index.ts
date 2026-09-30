@@ -100,3 +100,13 @@ export interface CreateProjectRequest {
 export interface ChatRequest {
   message: string
 }
+
+/** A dashboard we build well, offered as a starting point. */
+export interface Scenario {
+  id: string
+  title: string
+  audience: string
+  problem: string
+  highlights: string[]
+  prompt: string
+}

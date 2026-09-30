@@ -36,10 +36,9 @@
   --series-7: #4a3aa7;
   --series-8: #e34948;
 
-  /* Status — reserved, never reused as a series colour */
+  /* Direction of change on a stat tile. Reserved — never reused as a series
+   * colour, and always paired with an arrow so direction is not colour alone. */
   --good: #0ca30c;
-  --warning: #fab219;
-  --serious: #ec835a;
   --critical: #d03b3b;
 
   /* Resolved accent; the mode blocks below repoint these. */
@@ -344,54 +343,6 @@ tbody td {
 
 tbody tr:hover {
   background: var(--surface-1);
-}
-
-/* --- Status ------------------------------------------------------------ */
-
-.status-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 0;
-  border-top: 1px solid var(--line-soft);
-}
-.status-row:first-child {
-  border-top: none;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 3px 9px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.pill::before {
-  content: "";
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-/* Status is never colour alone — each pill carries its label as text. */
-.pill-good {
-  color: var(--good);
-  background: color-mix(in srgb, var(--good) 13%, transparent);
-}
-.pill-warning {
-  color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
-}
-.pill-serious {
-  color: var(--serious);
-  background: color-mix(in srgb, var(--serious) 16%, transparent);
-}
-.pill-critical {
-  color: var(--critical);
-  background: color-mix(in srgb, var(--critical) 14%, transparent);
 }
 
 /* --- Controls ---------------------------------------------------------- */
