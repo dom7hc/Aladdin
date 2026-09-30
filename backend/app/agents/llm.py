@@ -27,6 +27,7 @@ from app.agents.base import (
     TesterAgent,
     TestResult,
 )
+from app.agents.stubs import QUESTION_PER_FIELD
 from app.generation import runner
 from app.schemas.project import LIST_FIELDS, completion_of, missing_fields
 from app.workspace import workspace as ws
@@ -176,9 +177,10 @@ _REQUIREMENT_SYSTEM = (
     'message to the user>"}. Field types: "problem" is a string; '
     '"targetUsers", "mainWorkflow", "features", "inputs", "outputs", '
     '"constraints" and "successCriteria" are arrays of short strings. '
-    "Include a field only if the conversation states it; never invent facts. In "
-    '"reply", ask about the most important missing field, or confirm the '
-    "requirements are complete."
+    "Include a field only if the conversation states it; never invent facts. The "
+    'user message lists which fields are still missing: in "reply", ask about '
+    "the FIRST one listed, and never say the requirements are complete while any "
+    "field is still missing."
 )
 
 
@@ -195,11 +197,17 @@ class LlmRequirementAgent(RequirementAgent):
             f"{entry.get('role', 'user')}: {entry.get('content', '')}" for entry in chat
         )
         current = json.dumps(requirements, ensure_ascii=False)
+        # Name the outstanding fields explicitly. Left to judge "the most
+        # important missing field" on its own, the model skipped `features`
+        # entirely and then declared the requirements complete.
+        still_missing = ", ".join(missing_fields(requirements)) or "nothing"
         payload = _extract_json(
             await self.client.complete(
                 _REQUIREMENT_SYSTEM,
                 (
-                    f"Known requirements so far (JSON): {current}\n\nConversation:\n{transcript}\n\n"
+                    f"Known requirements so far (JSON): {current}\n"
+                    f"Still missing, in priority order: {still_missing}\n\n"
+                    f"Conversation:\n{transcript}\n\n"
                     f"New user message: {message}"
                 ),
             )
@@ -223,8 +231,27 @@ class LlmRequirementAgent(RequirementAgent):
             reply = (
                 "I have enough information to prepare the PoC specification."
                 if not remaining
-                else f"Could you tell me more about: {remaining[0]}?"
+                else _question_for(remaining[0])
             )
+        elif remaining:
+            # Readiness is deterministic, but the model would answer "the
+            # requirements are complete" while a field was still empty. The user
+            # was then told they were finished while Generate stayed blocked,
+            # with nothing left to answer.
+            #
+            # A reply that asks something is left alone even if it is about a
+            # different missing field — it still moves the user forward. Only a
+            # reply that asks nothing, or claims to be done, gets the question.
+            reply = reply.strip()
+            lowered = reply.lower()
+            claims_done = any(
+                phrase in lowered
+                for phrase in ("requirements are complete", "have enough", "nothing missing")
+            )
+            if claims_done or "?" not in reply:
+                question = _question_for(remaining[0])
+                if question.rstrip("?").lower() not in lowered:
+                    reply = f"{reply}\n\n{question}"
         return RequirementTurn(
             assistant_message=reply.strip(),
             requirements=content,
@@ -253,6 +280,11 @@ class LlmArchitectAgent(ArchitectAgent):
             if not isinstance(payload.get(key), list):
                 raise LLMError(f"LLM architecture JSON lacked array field '{key}'")
         return payload
+
+
+def _question_for(field: str) -> str:
+    """The question that unblocks a missing requirement field."""
+    return QUESTION_PER_FIELD.get(field, f"Could you tell me about {field}?")
 
 
 def _safe_generated_path(path: str) -> bool:
