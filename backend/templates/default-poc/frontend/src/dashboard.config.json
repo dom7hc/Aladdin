@@ -1,0 +1,23 @@
+{
+  "title": "Dashboard",
+  "subtitle": "Replaced by the generator with the user's own dashboard",
+  "layout": "kpi-overview",
+  "theme": "indigo",
+  "widgets": [
+    {
+      "kind": "stat",
+      "endpoint": "/api/metrics",
+      "label": "Records",
+      "field": "total",
+      "deltaField": "change",
+      "trendField": "trend"
+    },
+    {
+      "kind": "line",
+      "endpoint": "/api/series",
+      "title": "Over time",
+      "xField": "label",
+      "series": [{ "label": "Count", "field": "value" }]
+    }
+  ]
+}

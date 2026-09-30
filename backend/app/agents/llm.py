@@ -29,6 +29,7 @@ from app.agents.base import (
 )
 from app.agents.stubs import QUESTION_PER_FIELD
 from app.generation import runner
+from app.generation.spec import LAYOUTS, MAX_SERIES, MAX_WIDGETS, THEMES, validate_spec
 from app.schemas.project import LIST_FIELDS, completion_of, missing_fields
 from app.workspace import workspace as ws
 
@@ -37,15 +38,15 @@ logger = logging.getLogger(__name__)
 MAX_GENERATED_FILES = 14
 MAX_FILE_CHARS = 64_000
 MAX_DIAGNOSIS_CHARS = 2_000
-# Files every generated PoC must keep regardless of what the model produces:
-# a runnable FastAPI app and a runnable React entry (index.html + main.tsx
-# mount App.tsx; the template only ships a placeholder package.json).
-MINIMAL_FILES = {
-    "backend/main.py",
-    "frontend/package.json",
-    "frontend/index.html",
-    "frontend/src/main.tsx",
-}
+
+# The only frontend file the generator writes; everything visual is
+# platform-owned in the template's frontend/src/kit/.
+DASHBOARD_SPEC_PATH = "frontend/src/dashboard.config.json"
+
+# Files every generated PoC must have. The frontend entry, package.json and the
+# design system all come from the template now, and the platform writes the
+# spec, so the generator owes only a runnable FastAPI app.
+MINIMAL_FILES = {"backend/main.py"}
 
 
 class LLMError(Exception):
@@ -261,6 +262,30 @@ class LlmRequirementAgent(RequirementAgent):
         )
 
 
+_ARCHITECT_SYSTEM = (
+    "You design DASHBOARDS, and nothing else. Whatever the requirements "
+    "describe, express it as a dashboard that reports on it: numbers, trends, "
+    "breakdowns, records, status. Never propose chat interfaces, assistants, "
+    "wizards or content editors.\n"
+    "Given requirements JSON, answer with STRICT JSON only — the dashboard "
+    'spec: {"title", "subtitle", "layout", "widgets": [...], "filters": [...]}.\n'
+    f"'layout' is exactly one of {sorted(LAYOUTS)}: kpi-overview for headline "
+    "numbers over time, analytics-breakdown to compare a trend against "
+    "categories, operations-monitor for health and alerts, records-workspace "
+    "for browsing and filtering records.\n"
+    'Every widget has "kind" and "endpoint" (a path under /api/). By kind: '
+    '"stat" needs label and field, plus optional deltaField and trendField; '
+    '"line" needs title, xField and series[{label, field}]; "bar" needs title, '
+    'categoryField and series[{label, field}]; "table" needs title and '
+    'columns[{label, field}]; "status" needs title, labelField and levelField '
+    "(values good|warning|serious|critical).\n"
+    f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
+    "the form by the data's job: a single headline number is a stat, change "
+    "over time is a line, comparison across categories is a bar. Never two "
+    "measures of different scale in one chart — use two charts."
+)
+
+
 class LlmArchitectAgent(ArchitectAgent):
     def __init__(self, client: DeepSeekClient | None = None) -> None:
         self.client = client or DeepSeekClient()
@@ -268,17 +293,16 @@ class LlmArchitectAgent(ArchitectAgent):
     async def run(self, requirements: dict[str, Any]) -> dict[str, Any]:
         payload = _extract_json(
             await self.client.complete(
-                "You are a software architect for small AI PoCs (FastAPI + React + "
-                "MongoDB). Given requirements JSON, answer with STRICT JSON only: "
-                '{"pages": [{"name", "purpose"}], "apis": [{"method", '
-                '"path"}], "entities": [{"name", "fields"}], "services": '
-                '[string], "aiCapabilities": [string]}. Keep it minimal but complete.',
-                json.dumps(requirements, ensure_ascii=False),
+                _ARCHITECT_SYSTEM, json.dumps(requirements, ensure_ascii=False)
             )
         )
-        for key in ("pages", "apis", "entities", "services", "aiCapabilities"):
-            if not isinstance(payload.get(key), list):
-                raise LLMError(f"LLM architecture JSON lacked array field '{key}'")
+        errors = validate_spec(payload)
+        if errors:
+            raise LLMError("LLM dashboard spec is invalid: " + "; ".join(errors[:6]))
+        # Carried through so the generated dashboard opens on the theme the user
+        # picked, whatever the model put in the spec.
+        if requirements.get("theme") in THEMES:
+            payload["theme"] = requirements["theme"]
         return payload
 
 
@@ -288,10 +312,19 @@ def _question_for(field: str) -> str:
 
 
 def _safe_generated_path(path: str) -> bool:
+    """Where the generator may write.
+
+    The frontend is platform-owned: only the dashboard spec is writable, so the
+    design system in frontend/src/kit/ cannot be overwritten by a model that
+    decides to bring its own CSS.
+    """
     if not path or path.startswith("/") or "\\" in path or ".." in path:
         return False
-    root = path.split("/", 1)[0]
-    return root in {"backend", "frontend"} or path == "README.md"
+    if path == "README.md":
+        return True
+    # The spec is written by the platform from the validated architecture, not
+    # by the model, so even that path is closed.
+    return path.split("/", 1)[0] == "backend"
 
 
 class LlmDeveloperAgent(DeveloperAgent):
@@ -307,31 +340,29 @@ class LlmDeveloperAgent(DeveloperAgent):
     ) -> list[str]:
         payload = _extract_json(
             await self.client.complete(
-                "You are the code generator of an AI PoC builder. Given requirements "
-                'and architecture JSON, output STRICT JSON only: {"files": '
-                '[{"path": "...", "content": "..."}]}. Rules: paths are '
-                "workspace-relative under backend/ or frontend/ (or README.md); the "
-                "backend is FastAPI and MUST define backend/main.py with a GET /health "
-                "route, and backend/requirements.txt MUST list fastapi and "
-                "uvicorn[standard]; the frontend is React and MUST include "
-                'frontend/package.json with a "build" script plus react, '
-                "react-dom, vite, @vitejs/plugin-react and typescript in its "
-                "dependencies/devDependencies, frontend/index.html and "
-                "frontend/src/main.tsx mounting frontend/src/App.tsx; at most "
-                f"{MAX_GENERATED_FILES} files and at most 120 lines per file; write "
-                "tersely, no markdown fences inside content, no comments beyond "
-                "one line where essential, no TODO placeholders, and emit valid "
-                "JSON (escape newlines inside strings). TYPE SAFETY: never use "
-                "the React namespace (React.FC, React.ReactNode, ...) without "
-                "importing React; prefer plain TypeScript types for props and "
-                "state. API CONSISTENCY: the "
-                "backend MUST implement every /api endpoint the frontend calls "
-                "(fetch paths and FastAPI routes must match exactly), so decide "
-                "the endpoint list up front and reuse it on both sides. UI "
-                "QUALITY: make the page presentable — add a small "
-                "frontend/src/styles.css (imported from main.tsx) with a card "
-                "layout, consistent spacing, readable font sizes and styled "
-                "buttons/forms; no external UI libraries.",
+                "You are the code generator of an AI dashboard builder. Given "
+                "requirements and a dashboard spec, output STRICT JSON only: "
+                '{"files": [{"path": "...", "content": "..."}]}.\n'
+                "YOU DO NOT WRITE ANY UI. The dashboard is rendered by the "
+                "platform's own component kit from the spec, which the platform "
+                "writes — do not output it. Write only:\n"
+                "backend/ — a FastAPI app. backend/main.py MUST define GET "
+                "/health, and MUST implement every /api endpoint named by a "
+                "widget's 'endpoint', returning exactly the fields that widget "
+                "reads. backend/requirements.txt MUST list fastapi and "
+                "uvicorn[standard].\n"
+                "Endpoint payload shapes: a 'stat' endpoint returns one object "
+                "with its field, deltaField and trendField (trend is an array of "
+                "numbers); 'line', 'bar', 'table' and 'status' endpoints return "
+                "an ARRAY of objects whose keys are exactly the fields the widget "
+                "names. Seed 6-12 rows of realistic sample data in code so the "
+                "dashboard is populated on first load with no database.\n"
+                "Never write any frontend file — no CSS, no components, no "
+                "index.html. The whole frontend is platform-owned and any "
+                "frontend path is rejected.\n"
+                f"At most {MAX_GENERATED_FILES} files, 120 lines per file, write "
+                "tersely, no markdown fences inside content, no TODO "
+                "placeholders, and emit valid JSON (escape newlines in strings).",
                 json.dumps(
                     {
                         "requirements": requirements,
@@ -380,6 +411,17 @@ class LlmDeveloperAgent(DeveloperAgent):
         for path, content in validated:
             ws.write_file(project_id, path, content)
             written.append(path)
+
+        # The spec comes from the validated architecture, not from the model.
+        # Writing it here means the rendered dashboard always matches what the
+        # architect designed, with no chance of a transcription slip.
+        ws.write_file(
+            project_id,
+            DASHBOARD_SPEC_PATH,
+            json.dumps(architecture, ensure_ascii=False, indent=2) + "\n",
+        )
+        written.append(DASHBOARD_SPEC_PATH)
+
         missing = MINIMAL_FILES - set(ws.list_files(project_id))
         if missing:
             raise LLMError(

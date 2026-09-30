@@ -182,35 +182,65 @@ async def test_requirement_agent_rejects_payload_without_requirements():
         )
 
 
-async def test_architect_agent_validates_shape():
-    good = {
-        "pages": [{"name": "Home", "purpose": "main"}],
-        "apis": [{"method": "GET", "path": "/api/items"}],
-        "entities": [{"name": "Item", "fields": ["id"]}],
-        "services": ["ItemService"],
-        "aiCapabilities": [],
-    }
-    agent = LlmArchitectAgent(DeepSeekClient(client=FakeClient(json.dumps(good))))
-    assert await agent.run(empty_requirements("x")) == good
+VALID_SPEC = {
+    "title": "Orders",
+    "layout": "kpi-overview",
+    "widgets": [
+        {"kind": "stat", "endpoint": "/api/metrics", "label": "Orders", "field": "total"},
+        {
+            "kind": "line",
+            "endpoint": "/api/series",
+            "title": "Orders over time",
+            "xField": "day",
+            "series": [{"label": "Orders", "field": "value"}],
+        },
+    ],
+}
 
-    bad = {**good, "services": None}
+
+async def test_architect_agent_returns_a_valid_dashboard_spec():
+    agent = LlmArchitectAgent(DeepSeekClient(client=FakeClient(json.dumps(VALID_SPEC))))
+    assert await agent.run(empty_requirements("x")) == VALID_SPEC
+
+
+async def test_architect_agent_rejects_a_non_dashboard_spec():
+    """An unknown layout must fail the run, not render an empty page."""
+    bad = {**VALID_SPEC, "layout": "chatbot"}
     agent = LlmArchitectAgent(DeepSeekClient(client=FakeClient(json.dumps(bad))))
-    with pytest.raises(LLMError, match="services"):
+    with pytest.raises(LLMError, match="layout"):
         await agent.run(empty_requirements("x"))
 
 
-async def test_developer_agent_writes_files(llm_workspace: str):
+async def test_architect_agent_honours_the_users_theme():
+    """The theme the user picked wins over whatever the model chose."""
+    agent = LlmArchitectAgent(
+        DeepSeekClient(client=FakeClient(json.dumps({**VALID_SPEC, "theme": "rose"})))
+    )
+    spec = await agent.run({**empty_requirements("x"), "theme": "teal"})
+    assert spec["theme"] == "teal"
+
+
+async def test_developer_agent_writes_backend_and_the_platform_writes_the_spec(llm_workspace: str):
     files = [
         {"path": "backend/main.py", "content": "from fastapi import FastAPI\napp = FastAPI()\n"},
-        {"path": "frontend/package.json", "content": '{"name": "poc"}'},
-        {"path": "frontend/index.html", "content": "<!doctype html>\n"},
-        {"path": "frontend/src/main.tsx", "content": "import App from './App'\n"},
-        {"path": "frontend/src/App.tsx", "content": "export default () => null\n"},
+        {"path": "backend/requirements.txt", "content": "fastapi\n"},
     ]
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
-    written = await agent.run(llm_workspace, {}, {})
-    assert len(written) == 5
+    written = await agent.run(llm_workspace, {}, VALID_SPEC)
+
     assert ws.read_file(llm_workspace, "backend/main.py").startswith("from fastapi")
+    # The spec is ours, not the model's: it must match the architecture exactly.
+    assert llm.DASHBOARD_SPEC_PATH in written
+    assert json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH)) == VALID_SPEC
+
+
+async def test_developer_agent_rejects_every_frontend_path(llm_workspace: str):
+    """The design system is platform-owned; a model bringing its own CSS fails."""
+    for path in ("frontend/src/App.tsx", "frontend/src/kit/theme.css", "frontend/package.json"):
+        files = [{"path": "backend/main.py", "content": "x"}, {"path": path, "content": "x"}]
+        agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+        with pytest.raises(LLMError, match="unsafe path"):
+            await agent.run(llm_workspace, {}, VALID_SPEC)
 
 
 async def test_developer_agent_rejects_unsafe_paths(llm_workspace: str):
@@ -221,37 +251,29 @@ async def test_developer_agent_rejects_unsafe_paths(llm_workspace: str):
     ]
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     with pytest.raises(LLMError, match="unsafe path"):
-        await agent.run(llm_workspace, {}, {})
+        await agent.run(llm_workspace, {}, VALID_SPEC)
     assert ws.list_files(llm_workspace) == []  # nothing written on failure
 
 
 async def test_developer_agent_truncates_overflow_keeping_required(llm_workspace: str):
     files: list[dict[str, str]] = [
-        {"path": "frontend/src/pages/Extra.tsx", "content": "x"} for _ in range(14)
+        {"path": f"backend/extra_{i}.py", "content": "x"} for i in range(14)
     ]
     files.insert(0, {"path": "backend/main.py", "content": "app = 1\n"})
-    files.insert(1, {"path": "frontend/package.json", "content": "{}\n"})
-    files.insert(2, {"path": "frontend/index.html", "content": "<html>\n"})
-    files.insert(3, {"path": "frontend/src/main.tsx", "content": "x\n"})
     files.append({"path": "backend/requirements.txt", "content": "fastapi\n"})
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
-    written = await agent.run(llm_workspace, {}, {})
-    assert len(written) == llm.MAX_GENERATED_FILES
-    for required in (
-        "backend/main.py",
-        "frontend/package.json",
-        "frontend/index.html",
-        "frontend/src/main.tsx",
-        "backend/requirements.txt",
-    ):
+    written = await agent.run(llm_workspace, {}, VALID_SPEC)
+    # The platform's spec is written on top of the model's budgeted files.
+    assert len(written) == llm.MAX_GENERATED_FILES + 1
+    for required in ("backend/main.py", "backend/requirements.txt", llm.DASHBOARD_SPEC_PATH):
         assert required in written
 
 
 async def test_developer_agent_requires_minimal_files(llm_workspace: str):
-    files = [{"path": "frontend/src/App.tsx", "content": "x"}]
+    files = [{"path": "backend/helpers.py", "content": "x"}]
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     with pytest.raises(LLMError, match="backend/main.py"):
-        await agent.run(llm_workspace, {}, {})
+        await agent.run(llm_workspace, {}, VALID_SPEC)
 
 
 async def test_reviewer_agent_maps_pass_and_clamps_severity():

@@ -33,25 +33,64 @@ def render_requirements_md(name: str, content: dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _widget_line(widget: dict[str, Any]) -> str:
+    """One readable line per widget, whatever its kind."""
+    kind = widget.get("kind", "?")
+    name = widget.get("title") or widget.get("label") or "(untitled)"
+    endpoint = widget.get("endpoint", "")
+    detail = ""
+    series = widget.get("series")
+    columns = widget.get("columns")
+    if isinstance(series, list) and series:
+        detail = " — " + ", ".join(str(s.get("label", "")) for s in series if isinstance(s, dict))
+    elif isinstance(columns, list) and columns:
+        detail = " — " + ", ".join(str(c.get("label", "")) for c in columns if isinstance(c, dict))
+    elif widget.get("field"):
+        detail = f" — {widget['field']}"
+    return f"- **{name}** (`{kind}`, `{endpoint}`){detail}"
+
+
 def render_architecture_md(architecture: dict[str, Any]) -> str:
-    lines = ["# Architecture", ""]
-    sections = [
-        ("Pages", "pages", "name", "purpose"),
-        ("APIs", "apis", "method", "path"),
-        ("Entities", "entities", "name", "fields"),
-        ("Services", "services", None, None),
-        ("AI Capabilities", "aiCapabilities", None, None),
-    ]
-    for title, key, first, second in sections:
-        values = architecture.get(key, [])
-        lines += [f"## {title}"]
-        for item in values:
+    """Render the dashboard spec as readable Markdown.
+
+    Mirrors app/generation/spec.py's shape: the architecture *is* the dashboard
+    spec now, so this describes widgets rather than pages and services.
+    """
+    lines = [f"# {architecture.get('title') or 'Dashboard'}", ""]
+    if architecture.get("subtitle"):
+        lines += [str(architecture["subtitle"]), ""]
+    lines += [f"**Layout:** `{architecture.get('layout', '(unset)')}`"]
+    if architecture.get("theme"):
+        lines.append(f"**Theme:** `{architecture['theme']}`")
+    lines.append("")
+
+    widgets = architecture.get("widgets")
+    lines.append("## Widgets")
+    if isinstance(widgets, list) and widgets:
+        lines += [_widget_line(w) for w in widgets if isinstance(w, dict)]
+    else:
+        lines.append("- (none)")
+    lines.append("")
+
+    endpoints = sorted(
+        {
+            str(w["endpoint"])
+            for w in (widgets if isinstance(widgets, list) else [])
+            if isinstance(w, dict) and w.get("endpoint")
+        }
+    )
+    lines.append("## Endpoints the backend must serve")
+    lines += [f"- `{endpoint}`" for endpoint in endpoints] or ["- (none)"]
+    lines.append("")
+
+    filters = architecture.get("filters")
+    if isinstance(filters, list) and filters:
+        lines.append("## Filters")
+        for item in filters:
             if isinstance(item, dict):
-                second_value = item.get(second, "")
-                if isinstance(second_value, list):
-                    second_value = ", ".join(str(v) for v in second_value)
-                lines.append(f"- **{item.get(first, '')}** – {second_value}")
-            else:
-                lines.append(f"- {item}")
+                options = item.get("options")
+                joined = ", ".join(str(o) for o in options) if isinstance(options, list) else ""
+                lines.append(f"- **{item.get('label') or item.get('field')}**: {joined}")
         lines.append("")
+
     return "\n".join(lines).rstrip() + "\n"
