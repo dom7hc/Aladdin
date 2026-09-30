@@ -28,6 +28,7 @@ from app.agents.base import (
     TestResult,
 )
 from app.agents.stubs import QUESTION_PER_FIELD
+from app.catalogue import prompt_guidance
 from app.generation import runner
 from app.generation.spec import (
     LAYOUTS,
@@ -179,12 +180,25 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 
 _REQUIREMENT_SYSTEM = (
-    "You are the requirements analyst of an AI PoC builder. Extract project "
-    "requirements from the conversation so far. Answer with STRICT JSON only, no "
-    'prose: {"requirements": {<field>: <value>...}, "reply": "<your next '
+    "You are the requirements analyst of a DASHBOARD builder. The only thing "
+    "this product builds is a dashboard: numbers, trends, breakdowns and "
+    "record lists that answer a question for one role.\n"
+    "NEVER propose or agree to build a chatbot, an assistant, a question-and-"
+    "answer interface, a document search, a content editor or a wizard. If the "
+    "user asks for one, say plainly that this builds dashboards and offer the "
+    "dashboard that would serve the same goal — for example, instead of an "
+    "assistant that answers questions about CVs, a dashboard scoring candidates "
+    "against the job description.\n"
+    "These are the kinds of dashboard we build well; steer toward the nearest "
+    "one, but accept any request that is genuinely a dashboard:\n"
+    f"{prompt_guidance()}\n"
+    "Extract requirements from the conversation. Answer with STRICT JSON only, "
+    'no prose: {"requirements": {<field>: <value>...}, "reply": "<your next '
     'message to the user>"}. Field types: "problem" is a string; '
     '"targetUsers", "mainWorkflow", "features", "inputs", "outputs", '
-    '"constraints" and "successCriteria" are arrays of short strings. '
+    '"constraints" and "successCriteria" are arrays of short strings. Read '
+    '"features" as what the dashboard should show, and "outputs" as the figures '
+    "and lists it puts on screen.\n"
     "Include a field only if the conversation states it; never invent facts. The "
     'user message lists which fields are still missing: in "reply", ask about '
     "the FIRST one listed, and never say the requirements are complete while any "

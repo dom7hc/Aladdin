@@ -36,13 +36,6 @@ GOOD = {
             "title": "Recent orders",
             "columns": [{"label": "Ref", "field": "ref"}, {"label": "Total", "field": "total"}],
         },
-        {
-            "kind": "status",
-            "endpoint": "/api/health",
-            "title": "Feeds",
-            "labelField": "name",
-            "levelField": "level",
-        },
     ],
     "filters": [{"label": "Region", "field": "region", "options": ["All", "EU", "US"]}],
 }
@@ -135,8 +128,11 @@ def test_layouts_and_themes_match_the_typescript_kit():
 
     kit = Path(TEMPLATES_DIR) / "default-poc" / "frontend" / "src" / "kit"
     types_ts = (kit / "types.ts").read_text(encoding="utf-8")
-    declared = set(re.findall(r'^\s*\|?\s*"([a-z-]+)";?\s*$', types_ts, re.MULTILINE))
-    assert LAYOUTS <= declared, f"kit/types.ts is missing layouts: {LAYOUTS - declared}"
+    # Match the declaration however it is wrapped, then read its literals.
+    union = re.search(r"export type Layout\s*=([^;]+);", types_ts, re.DOTALL)
+    assert union, "kit/types.ts no longer declares a Layout type"
+    declared = set(re.findall(r'"([a-z-]+)"', union.group(1)))
+    assert LAYOUTS == declared, f"Layout drift — python {LAYOUTS}, kit {declared}"
 
     theme_css = (kit / "theme.css").read_text(encoding="utf-8")
     styled = set(re.findall(r'\[data-theme="([a-z]+)"\]', theme_css))
@@ -150,7 +146,26 @@ def test_spec_endpoints_are_deduplicated():
         "/api/series",
         "/api/by-region",
         "/api/orders",
-        "/api/health",
     }
     duplicated = {**GOOD, "widgets": [GOOD["widgets"][0], GOOD["widgets"][0]]}
     assert spec_endpoints(duplicated) == {"/api/metrics"}
+
+
+def test_the_status_widget_is_retired_everywhere():
+    """Health pills are engineering furniture, not something an HR or sales
+    dashboard should show. Removed from the validator, the kit and the layouts.
+    """
+    import re
+    from pathlib import Path
+
+    from app.config import TEMPLATES_DIR
+    from app.generation.spec import REQUIRED_BY_KIND
+
+    assert "status" not in REQUIRED_BY_KIND
+    assert "operations-monitor" not in LAYOUTS
+
+    kit = Path(TEMPLATES_DIR) / "default-poc" / "frontend" / "src" / "kit"
+    for name in ("types.ts", "render.tsx", "widgets.tsx"):
+        body = (kit / name).read_text(encoding="utf-8")
+        assert "StatusList" not in body, f"{name} still references StatusList"
+        assert not re.search(r'kind:\s*"status"', body), f"{name} still declares a status widget"

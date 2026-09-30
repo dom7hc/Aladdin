@@ -27,13 +27,16 @@ from app.schemas.project import (
 )
 from app.workspace import workspace as ws
 
+# Phrased for a dashboard, because that is the only thing this product builds.
+# Asking "what should users be able to do?" invited answers about assistants and
+# editors that we then could not build.
 QUESTION_PER_FIELD = {
-    "targetUsers": "Who will mainly use this application?",
-    "mainWorkflow": "What is the main workflow users follow?",
-    "features": "What should users be able to do?",
-    "inputs": "What inputs does the application receive?",
-    "outputs": "What outputs should it produce?",
-    "successCriteria": "What does success look like?",
+    "targetUsers": "Whose job should this dashboard make easier?",
+    "mainWorkflow": "What do they do today to get this information?",
+    "features": "What should the dashboard show them?",
+    "inputs": "What data would it read — which records or fields?",
+    "outputs": "Which figures and lists should appear on screen?",
+    "successCriteria": "What decision should they be able to make at a glance?",
 }
 
 # Fixed fill order: each user message fills the first missing required field.

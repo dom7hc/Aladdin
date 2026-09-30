@@ -21,6 +21,7 @@ from app.agents.stubs import (
     StubReviewerAgent,
     StubTesterAgent,
 )
+from app.catalogue import as_public_list
 from app.repositories.project_repository import ProjectNotFoundError
 from app.schemas.project import (
     ArtifactResponse,
@@ -67,6 +68,16 @@ def get_generation_service(
         reviewer: ReviewerAgent = StubReviewerAgent()
         tester: TesterAgent = StubTesterAgent()
     return PocGenerationService(db, architect, developer, reviewer, tester)
+
+
+@router.get("/scenarios")
+async def scenarios() -> list[dict[str, object]]:
+    """Dashboards we build well, offered as starting points.
+
+    Declared before the "/{project_id}" routes so "scenarios" is not captured
+    as a project id.
+    """
+    return as_public_list()
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)

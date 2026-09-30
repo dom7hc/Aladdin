@@ -1,6 +1,7 @@
 import type {
   FinalizeResult,
   PreviewState,
+  Scenario,
   Project,
   ProjectStatus,
   RequirementData,
@@ -55,4 +56,8 @@ export interface RequirementsSummary {
 
 export function getRequirements(id: string): Promise<RequirementsSummary> {
   return apiFetch<RequirementsSummary>(`/projects/${id}/requirements`)
+}
+
+export function getScenarios(): Promise<Scenario[]> {
+  return apiFetch<Scenario[]>('/projects/scenarios')
 }

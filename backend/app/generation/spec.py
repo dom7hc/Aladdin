@@ -10,10 +10,12 @@ an actionable message instead of producing a dashboard that renders empty.
 
 from typing import Any
 
+# operations-monitor is deliberately absent: it existed only to arrange status
+# widgets, and health pills are engineering furniture that a non-technical user
+# does not need on an HR or sales dashboard.
 LAYOUTS = {
     "kpi-overview",
     "analytics-breakdown",
-    "operations-monitor",
     "records-workspace",
 }
 
@@ -25,11 +27,10 @@ REQUIRED_BY_KIND: dict[str, tuple[str, ...]] = {
     "line": ("title", "xField", "series"),
     "bar": ("title", "categoryField", "series"),
     "table": ("title", "columns"),
-    "status": ("title", "labelField", "levelField"),
 }
 
 # A dashboard with no way to show a number is not a dashboard.
-_VISUAL_KINDS = {"stat", "line", "bar", "table", "status"}
+_VISUAL_KINDS = {"stat", "line", "bar", "table"}
 
 MAX_WIDGETS = 10
 # The series palette has eight slots and is never cycled.
@@ -120,7 +121,7 @@ def validate_spec(spec: Any) -> list[str]:
             _check_columns(widget, where, errors)
 
     if not any(isinstance(w, dict) and w.get("kind") in _VISUAL_KINDS for w in widgets):
-        errors.append("a dashboard needs at least one stat, chart, table or status widget")
+        errors.append("a dashboard needs at least one stat, chart or table widget")
 
     return errors
 

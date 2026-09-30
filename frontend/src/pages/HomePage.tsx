@@ -6,14 +6,8 @@ import { ProjectCard } from '@/components/projects/ProjectCard'
 import { Button } from '@/components/ui/Button'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
-import { useCreateProject, useProjectsQuery } from '@/hooks/useProjects'
+import { useCreateProject, useProjectsQuery, useScenariosQuery } from '@/hooks/useProjects'
 import type { ProjectStatusValue } from '@/types'
-
-const SUGGESTIONS = [
-  'An AI app that analyzes PDF invoices, extracts line items, and flags anomalies.',
-  'A support assistant that answers HR policy questions from internal documents.',
-  'A dashboard that clusters customer feedback and summarizes sentiment trends.',
-]
 
 const STATUS_ORDER: ProjectStatusValue[] = [
   'CREATED',
@@ -60,6 +54,7 @@ export function HomePage() {
   const [statusFilter, setStatusFilter] = useState<StatusGroup | 'ALL'>('ALL')
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const createProject = useCreateProject()
+  const scenariosQuery = useScenariosQuery()
 
   const projectsQuery = useProjectsQuery()
 
@@ -106,12 +101,12 @@ export function HomePage() {
           <h1 className="mb-3 text-center text-display-lg-mobile font-extrabold tracking-tight text-on-surface sm:text-display-lg">
             Turn your idea into a{' '}
             <span className="text-gradient-primary drop-shadow-[0_0_20px_rgba(71,219,207,0.35)]">
-              working PoC
+              working dashboard
             </span>
           </h1>
           <p className="mb-8 max-w-lg text-center text-body-lg text-on-surface-variant">
-            Describe what you want to build. AI turns your requirements into interactive
-            prototypes.
+            Describe the decision you need to make. You get a working dashboard and a slide
+            deck to present it.
           </p>
 
           <div className="group relative w-full">
@@ -127,7 +122,7 @@ export function HomePage() {
                   }
                 }}
                 rows={3}
-                placeholder="Describe the application, data inputs, and desired workflow..."
+                placeholder="Which numbers do you need to see, and who needs to see them?"
                 className="w-full resize-none border-none bg-transparent p-2 text-body-md text-on-surface outline-none placeholder:text-outline/70"
               />
               <div className="mt-2 flex items-center justify-end border-t border-outline-variant/40 pt-3">
@@ -143,17 +138,24 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap justify-center gap-2">
-            {SUGGESTIONS.map((suggestion) => (
-              <button
-                key={suggestion}
-                type="button"
-                onClick={() => setIdea(suggestion)}
-                className="max-w-full truncate rounded-full border border-outline-variant/60 bg-surface-container-lowest px-3 py-1.5 text-[11px] text-on-surface-variant transition-colors hover:border-primary/50 hover:text-primary"
-              >
-                {suggestion}
-              </button>
-            ))}
+          <div className="mt-5 w-full">
+            <p className="mb-2 text-center text-[11px] uppercase tracking-wider text-on-surface-variant/80">
+              Or start from one of these
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {(scenariosQuery.data ?? []).map((scenario) => (
+                <button
+                  key={scenario.id}
+                  type="button"
+                  title={scenario.problem}
+                  onClick={() => setIdea(scenario.prompt)}
+                  className="max-w-full rounded-full border border-outline-variant/60 bg-surface-container-lowest px-3 py-1.5 text-[11px] text-on-surface-variant transition-colors hover:border-primary/50 hover:text-primary"
+                >
+                  {scenario.title}
+                  <span className="ml-1.5 text-outline/80">{scenario.audience}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {createProject.isError && (

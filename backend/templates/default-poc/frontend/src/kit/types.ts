@@ -3,13 +3,7 @@
 // Keep this in step with backend/app/generation/spec.py, which validates the
 // same shape before anything is written to the workspace.
 
-export type Layout =
-  | "kpi-overview"
-  | "analytics-breakdown"
-  | "operations-monitor"
-  | "records-workspace";
-
-export type StatusLevel = "good" | "warning" | "serious" | "critical";
+export type Layout = "kpi-overview" | "analytics-breakdown" | "records-workspace";
 
 /** A number shown on its own, optionally with a change and a sparkline. */
 export interface StatWidget {
@@ -46,21 +40,7 @@ export interface TableWidget {
   columns: { label: string; field: string; align?: "left" | "right" }[];
 }
 
-export interface StatusWidget {
-  kind: "status";
-  title: string;
-  labelField: string;
-  levelField: string;
-  detailField?: string;
-}
-
-export type Widget = (
-  | StatWidget
-  | LineWidget
-  | BarWidget
-  | TableWidget
-  | StatusWidget
-) & {
+export type Widget = (StatWidget | LineWidget | BarWidget | TableWidget) & {
   /** Backend path this widget reads, e.g. "/api/metrics". */
   endpoint: string;
 };

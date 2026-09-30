@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BarChart, LineChart } from "./charts";
 import type { DashboardSpec, Widget } from "./types";
-import { Card, DataTable, FilterRail, StatTile, StatusList, ThemeSwitcher } from "./widgets";
+import { Card, DataTable, FilterRail, StatTile, ThemeSwitcher } from "./widgets";
 
 type Payload = Record<string, unknown> | Record<string, unknown>[];
 
@@ -109,17 +109,6 @@ function WidgetView({ widget, payload }: { widget: Widget; payload: Payload | un
           <DataTable rows={asRows(payload)} columns={widget.columns} />
         </Card>
       );
-    case "status":
-      return (
-        <Card title={widget.title}>
-          <StatusList
-            rows={asRows(payload)}
-            labelField={widget.labelField}
-            levelField={widget.levelField}
-            detailField={widget.detailField}
-          />
-        </Card>
-      );
     default:
       return null;
   }
@@ -140,17 +129,6 @@ function arrange(spec: DashboardSpec, node: (w: Widget) => ReactNode) {
         <>
           {statRow}
           {plots.length ? <div className="row row-2">{plots.map(node)}</div> : null}
-          {others.map(node)}
-        </>
-      );
-    }
-    case "operations-monitor": {
-      const status = rest.filter((w) => w.kind === "status");
-      const others = rest.filter((w) => w.kind !== "status");
-      return (
-        <>
-          {statRow}
-          {status.map(node)}
           {others.map(node)}
         </>
       );
