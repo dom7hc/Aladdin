@@ -27,7 +27,7 @@ from app.agents.base import (
     TesterAgent,
     TestResult,
 )
-from app.agents.stubs import QUESTION_PER_FIELD
+from app.agents.stubs import AUTOFILL_DEFAULTS, QUESTION_PER_FIELD, StubRequirementAgent
 from app.catalogue import prompt_guidance
 from app.generation import runner
 from app.generation.spec import (
@@ -206,6 +206,17 @@ _REQUIREMENT_SYSTEM = (
 )
 
 
+_AUTOFILL_SYSTEM = (
+    "You are the requirements analyst of an AI PoC builder. Given known "
+    "requirements, draft sensible values for the MISSING fields only, based on "
+    "the problem statement and conversation. Answer with STRICT JSON only, no "
+    'prose: {"<field>": <value>}. Array fields ("targetUsers", "mainWorkflow", '
+    '"features", "inputs", "outputs", "constraints", "successCriteria") take '
+    '2-3 short strings each; a missing "problem" takes one sentence. Keep the '
+    "suggestions concrete and easy to edit; never invent facts beyond the idea."
+)
+
+
 class LlmRequirementAgent(RequirementAgent):
     """LLM extracts requirement fields; readiness stays deterministic."""
 
@@ -276,6 +287,63 @@ class LlmRequirementAgent(RequirementAgent):
                     reply = f"{reply}\n\n{question}"
         return RequirementTurn(
             assistant_message=reply.strip(),
+            requirements=content,
+            completion=completion_of(content),
+            missing_fields=remaining,
+            ready=not remaining,
+        )
+
+    async def autofill(
+        self, requirements: dict[str, Any], chat: list[dict[str, Any]]
+    ) -> RequirementTurn:
+        missing = missing_fields(requirements)
+        transcript = "\n".join(
+            f"{entry.get('role', 'user')}: {entry.get('content', '')}" for entry in chat
+        )
+        try:
+            payload = _extract_json(
+                await self.client.complete(
+                    _AUTOFILL_SYSTEM,
+                    (
+                        f"Known requirements so far (JSON): "
+                        f"{json.dumps(requirements, ensure_ascii=False)}\n"
+                        f"Still missing: {', '.join(missing)}\n\n"
+                        f"Conversation:\n{transcript}"
+                    ),
+                )
+            )
+        except LLMError:
+            # Autofill is a convenience; a flaky API must not break the button.
+            logger.warning("LLM autofill failed; using best-practice defaults", exc_info=True)
+            return await StubRequirementAgent().autofill(requirements, chat)
+        content = {**requirements}
+        for field in missing:
+            value = payload.get(field)
+            if field in LIST_FIELDS:
+                if (
+                    isinstance(value, list)
+                    and value
+                    and all(isinstance(v, str) and v.strip() for v in value)
+                ):
+                    content[field] = [v.strip() for v in value]
+            elif isinstance(value, str) and value.strip():
+                content[field] = value.strip()
+        remaining = missing_fields(content)
+        if remaining:
+            # The model skipped a field; keep the deterministic defaults rather
+            # than a half-filled state.
+            for field in remaining:
+                if field in AUTOFILL_DEFAULTS:
+                    content[field] = list(AUTOFILL_DEFAULTS[field])
+            remaining = missing_fields(content)
+        return RequirementTurn(
+            assistant_message=(
+                "I drafted the remaining sections from your idea — review them in "
+                "the summary and adjust anything you like."
+                if not remaining
+                else "I could not complete every section automatically; "
+                + QUESTION_PER_FIELD.get(remaining[0], "")
+            ),
             requirements=content,
             completion=completion_of(content),
             missing_fields=remaining,
@@ -411,7 +479,12 @@ class LlmDeveloperAgent(DeveloperAgent):
             path, content = entry.get("path"), entry.get("content")
             if not isinstance(path, str) or not _safe_generated_path(path):
                 raise LLMError(f"LLM developer produced an unsafe path: {path!r}")
-            if not isinstance(content, str) or not content.strip():
+            # An empty __init__.py is a valid Python package marker that models
+            # emit by convention — observed live: it failed two production runs
+            # ("empty content for backend/tests/__init__.py"). Real code files
+            # keep the guard.
+            is_package_marker = path.endswith("__init__.py")
+            if not isinstance(content, str) or (not content.strip() and not is_package_marker):
                 raise LLMError(f"LLM developer produced empty content for {path}")
             if len(content) > MAX_FILE_CHARS:
                 raise LLMError(f"LLM developer file {path} exceeded the size limit")

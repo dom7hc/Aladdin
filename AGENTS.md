@@ -6,7 +6,7 @@
 - `Achitecture/` (sic — the typo is baked into paths and docs; do not "fix" it) holds the plan documents the code implements.
 - Root `README.md` "Status" is stale (frontend marked as not started; it is built and integrated). `backend/README.md` and `frontend/README.md` are accurate — prefer them.
 - `stitch_ai_poc_builder/` is static design mockups (HTML/PNG) — no build, nothing imports it.
-- Root `docker-compose.yml` is dev-only MongoDB. The deployment stack is a separate file: `deploy/compose.yml`.
+- Root `docker-compose.yml` is the local full stack (builds frontend + backend + mongo, app on :8080, `LOCAL_PORT` override; LLM flags come from a gitignored root `.env`). `docker compose up -d mongo` still works alone for API-only dev. The deployment stack is a separate file: `deploy/compose.yml` (no mongo service — Cosmos DB for MongoDB via `runtime.env`), fronted by `deploy/caddy/Caddyfile`.
 
 ## Backend (run from `backend/`)
 
@@ -30,10 +30,12 @@ uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
 - Ruff line-length is 100 (`pyproject.toml`).
 
 Architecture facts:
-- API JSON is camelCase via `CamelModel` (to_camel aliases) in `app/schemas/project.py`; Python stays snake_case. `REQUIREMENT_FIELDS` order there drives the stub agent, completion %, and missing-field report.
-- The five pipeline agents are deterministic stubs behind interfaces in `app/agents/base.py` (`app/agents/stubs.py`) — the whole pipeline runs with no LLM keys. Real AI later replaces stubs only; don't alter orchestration/APIs for it.
-- Generation runs in-process via FastAPI `BackgroundTasks` (`app/api/projects.py` → `services/generation_service.py`), not a worker queue. Repair loop bounded by `MAX_REPAIR_ATTEMPTS` (default 3).
-- Generated PoC source is written to `backend/generated/` (gitignored) from templates in `backend/templates/default-poc/`. In deployment it lives only on a Docker volume — never mirrored into Mongo.
+- API JSON is camelCase via `CamelModel` (to_camel aliases) in `app/schemas/project.py`; Python stays snake_case. `REQUIREMENT_FIELDS` order there drives the stub agent, completion %, and missing-field report (`constraints` is the only optional field).
+- The five pipeline agents (Requirement → Architect → Developer → Reviewer → Tester) sit behind interfaces in `app/agents/base.py`. Two implementations: deterministic `app/agents/stubs.py` (default; whole pipeline runs with no LLM keys, tests stay hermetic) and real LLM `app/agents/llm.py` (DeepSeek via the OpenAI SDK, `LLM_ENABLED=true`; import is lazy). Swap implementations only behind the interfaces — don't alter orchestration/APIs.
+- Generation runs in-process via FastAPI `BackgroundTasks` (`app/api/projects.py` → `services/generation_service.py`), not a worker queue. Repair loop bounded by `MAX_REPAIR_ATTEMPTS` (default 3); concurrent generations capped by `MAX_CONCURRENT_GENERATIONS` (default 3, refused not queued).
+- Generated PoC source is written to `backend/generated/` (gitignored) from templates in `backend/templates/default-poc/`. It lives only on disk/Docker volume — never mirrored into Mongo.
+- Preview feature: the backend builds and runs a generated PoC as its own Docker stack via the mounted `/var/run/docker.sock` (`app/preview/`). The local compose mounts the socket; the deployed VM does not (preview returns `409` there). Slot N publishes loopback `8200+N` and is served publicly on `9000+N` — these must stay in step with the site blocks in `deploy/caddy/Caddyfile`.
+- `app/generation/contract.py` enforces that generated PoC frontends call absolute `/api/...` paths — that is why each preview gets its own port/origin instead of a shared path prefix.
 - Mongo data model: `projects` embeds requirements + artifacts; `messages` is a separate collection indexed by `project_id`.
 - `create_app(db=...)` lets tests inject a DB; `TestClient` must be used inside `with` or the lifespan never sets `app.state.db` (see `tests/conftest.py`).
 
@@ -58,8 +60,9 @@ Contract-change checklist — one API shape change touches all of:
 
 ## Git / CI / CD
 
-- Pull requests only. Normal work targets `develop` (push auto-deploys the dev stack, :8080); releases are `develop` → `main` (production, :80). Squash merge; Conventional-Commit-style PR titles; branch prefixes `feature/`, `fix/`, `infra/`, `docs/`, `chore/`.
-- `.github/workflows/` and `deploy/` require CODEOWNER approval; notify the CI/CD owner before changing Dockerfiles, container ports, health-check paths, required env vars, or compose service names (see `CONTRIBUTING.md`).
+- Pull requests only. Normal work targets `develop` (push auto-deploys the dev stack); releases are `develop` → `main` (production). Squash merge; Conventional-Commit-style PR titles; branch prefixes `feature/`, `fix/`, `infra/`, `docs/`, `chore/`.
+- Public entry is Caddy (`deploy/caddy/Caddyfile`): production on default HTTPS, development on :8443. Behind it, `deploy.yml` publishes the frontend loopback-only on :8080 (dev) / :8081 (prod); everything else stays inside the compose network.
+- `.github/workflows/` and `deploy/` require CODEOWNER approval (@dom7hc, see `CODEOWNERS`); notify the CI/CD owner before changing Dockerfiles, container ports, health-check paths, required env vars, or compose service names (see `CONTRIBUTING.md`).
 - Deploy images are tagged with the commit SHA only (never `latest`); all deployments serialize on one shared-VM concurrency group (`aladdin-vm-deployment`).
-- `.gitattributes` forces LF for `*.sh`, `Dockerfile`, `*.yml`, `nginx.conf` — a CR breaks shebangs on the deploy VM; keep these files LF.
+- `.gitattributes` forces LF for `*.sh`, `Dockerfile`, `*.yml`, `*.yaml`, `nginx.conf`, `Caddyfile` — a CR breaks shebangs on the deploy VM; keep these files LF.
 - PR descriptions must list every validation command run and its result (template enforces this).

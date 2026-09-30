@@ -21,7 +21,11 @@ from app.agents.llm import (
     _extract_json,
     build_llm_agents,
 )
-from app.agents.stubs import QUESTION_PER_FIELD, StubDeveloperAgent
+from app.agents.stubs import (
+    QUESTION_PER_FIELD,
+    StubDeveloperAgent,
+    StubRequirementAgent,
+)
 from app.schemas.project import empty_requirements
 from app.workspace import workspace as ws
 
@@ -182,6 +186,42 @@ async def test_requirement_agent_rejects_payload_without_requirements():
         )
 
 
+async def test_autofill_fills_missing_fields_from_the_model():
+    client = FakeClient(
+        json.dumps(
+            {
+                "targetUsers": ["Accountants"],
+                "mainWorkflow": ["Upload", "Review", "Export"],
+                "features": ["Upload invoices"],
+                "inputs": ["PDF invoices"],
+                "outputs": ["Dashboard"],
+                "successCriteria": ["Faster reviews"],
+            }
+        )
+    )
+    turn = await LlmRequirementAgent(DeepSeekClient(client=client)).autofill(
+        empty_requirements("Invoice AI"), []
+    )
+    assert turn.ready is True
+    assert turn.missing_fields == []
+    assert turn.requirements["targetUsers"] == ["Accountants"]
+
+
+async def test_autofill_falls_back_to_defaults_when_the_llm_fails():
+    client = FakeClient(RuntimeError("boom"))
+    turn = await LlmRequirementAgent(DeepSeekClient(client=client)).autofill(
+        empty_requirements("Invoice AI"), []
+    )
+    assert turn.ready is True
+    assert turn.requirements["mainWorkflow"]  # deterministic best-practice defaults
+
+
+async def test_stub_autofill_fills_every_missing_field():
+    turn = await StubRequirementAgent().autofill(empty_requirements("x"), [])
+    assert turn.ready is True
+    assert turn.missing_fields == []
+
+
 VALID_SPEC = {
     "title": "Orders",
     "layout": "kpi-overview",
@@ -232,6 +272,27 @@ async def test_developer_agent_writes_backend_and_the_platform_writes_the_spec(l
     # The spec is ours, not the model's: it must match the architecture exactly.
     assert llm.DASHBOARD_SPEC_PATH in written
     assert json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH)) == VALID_SPEC
+
+
+async def test_developer_agent_accepts_empty_package_markers(llm_workspace: str):
+    """Observed live: models emit empty __init__.py package markers, which is
+    valid Python — that exact case FAILED two production runs."""
+    files = [
+        {"path": "backend/main.py", "content": "from fastapi import FastAPI\napp = FastAPI()\n"},
+        {"path": "backend/requirements.txt", "content": "fastapi\n"},
+        {"path": "backend/__init__.py", "content": ""},
+        {"path": "backend/tests/__init__.py", "content": ""},
+    ]
+    agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+    written = await agent.run(llm_workspace, {}, VALID_SPEC)
+    assert "backend/tests/__init__.py" in written
+    assert ws.read_file(llm_workspace, "backend/tests/__init__.py") == ""
+
+    # The guard stays for real code files.
+    empty_main = [{"path": "backend/main.py", "content": ""}]
+    agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": empty_main}))))
+    with pytest.raises(LLMError, match="empty content"):
+        await agent.run(llm_workspace, {}, VALID_SPEC)
 
 
 async def test_developer_agent_rejects_every_frontend_path(llm_workspace: str):

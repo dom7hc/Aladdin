@@ -20,6 +20,7 @@ import type {
 import {
   GREETING,
   advanceRequirements,
+  autofillMissing,
   deriveProjectName,
 } from './requirementFlow'
 import {
@@ -329,6 +330,52 @@ export function handleMockRequest({ method, path, body }: MockRequest): unknown 
 
   // /projects/:id/requirements
   if (sub === 'requirements') {
+    if (action === 'autofill' && method === 'POST') {
+      if (project.status !== 'REQUIREMENT_COLLECTION') {
+        throw new ApiError(409, 'Requirements are already finalized for this project.')
+      }
+      const current = getRequirements(state, projectId)
+      if (missingRequirementFields(current).length === 0) {
+        return {
+          message: 'Every section is already filled — review the summary and generate when ready.',
+          requirements: current,
+          completion: 100,
+          missingFields: [],
+          ready: true,
+        }
+      }
+
+      const result = autofillMissing(current)
+      const missingFields = missingRequirementFields(result.requirements)
+      const message =
+        `I filled ${result.filledCount} remaining section(s) with Alladin best-practice ` +
+        'defaults — review them in the summary and adjust anything you like.'
+      state.requirements[projectId] = result.requirements
+      state.messages[projectId] = [
+        ...(state.messages[projectId] ?? []),
+        {
+          id: newId(),
+          projectId,
+          role: 'assistant',
+          content: message,
+          createdAt: new Date().toISOString(),
+        },
+      ]
+      project.completion = missingFields.length === 0 ? 100 : requirementCompletion(result.requirements)
+      project.status = missingFields.length === 0 ? 'REQUIREMENT_READY' : 'REQUIREMENT_COLLECTION'
+      touchProject(project)
+      persist()
+
+      const response: RequirementResponse = {
+        message,
+        requirements: result.requirements,
+        completion: project.completion,
+        missingFields,
+        ready: missingFields.length === 0,
+      }
+      return response
+    }
+
     if (action === 'finalize' && method === 'POST') {
       const requirements = getRequirements(state, projectId)
       if (missingRequirementFields(requirements).length > 0) {

@@ -128,6 +128,15 @@ async def get_requirements(
     return await _guard(project_id, service.requirements(project_id))
 
 
+@router.post("/{project_id}/requirements/autofill", response_model=ChatResponse)
+async def autofill_requirements(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+) -> ChatResponse:
+    """Fill the remaining requirement sections with best-practice suggestions."""
+    return await _guard(project_id, service.autofill_requirements(project_id))
+
+
 @router.post("/{project_id}/requirements/finalize", response_model=FinalizeResponse)
 async def finalize_requirements(
     project_id: str,

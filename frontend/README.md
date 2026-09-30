@@ -91,6 +91,7 @@ GET    /api/projects/:id
 GET    /api/projects/:id/chat
 POST   /api/projects/:id/chat
 GET    /api/projects/:id/requirements
+POST   /api/projects/:id/requirements/autofill
 POST   /api/projects/:id/requirements/finalize
 POST   /api/projects/:id/generate
 GET    /api/projects/:id/status

@@ -39,6 +39,37 @@ QUESTION_PER_FIELD = {
     "successCriteria": "What decision should they be able to make at a glance?",
 }
 
+# Best-practice defaults for the "Autofill remaining" button. Aladdin renders a
+# dashboard PoC, so the defaults describe the workflow every generated PoC
+# supports; the LLM agent personalizes the same fields from the idea and falls
+# back to these when the API is unavailable.
+AUTOFILL_DEFAULTS = {
+    "targetUsers": [
+        "Team leads and managers",
+        "Operations staff",
+        "Business stakeholders",
+    ],
+    "mainWorkflow": [
+        "Open the dashboard",
+        "Filter and explore the latest data",
+        "Act on the reported results",
+    ],
+    "features": [
+        "KPI overview with charts",
+        "Filterable record tables",
+        "Realistic seeded sample data",
+    ],
+    "inputs": ["Records entered through forms", "Uploaded or imported data"],
+    "outputs": [
+        "Interactive dashboard with KPIs, trends and breakdowns",
+        "Exportable reports",
+    ],
+    "successCriteria": [
+        "The dashboard loads populated with sample data",
+        "Every widget renders from a working API endpoint",
+    ],
+}
+
 # Fixed fill order: each user message fills the first missing required field.
 FILL_ORDER = [f for f in QUESTION_PER_FIELD]
 
@@ -78,6 +109,29 @@ class StubRequirementAgent(RequirementAgent):
             reply = "I have enough information to prepare the PoC specification."
         return RequirementTurn(
             assistant_message=reply,
+            requirements=content,
+            completion=completion_of(content),
+            missing_fields=remaining,
+            ready=not remaining,
+        )
+
+    async def autofill(
+        self, requirements: dict[str, Any], chat: list[dict[str, Any]]
+    ) -> RequirementTurn:
+        content = {**requirements}
+        for field, value in AUTOFILL_DEFAULTS.items():
+            if field in missing_fields(content):
+                content[field] = list(value)
+        remaining = missing_fields(content)
+        filled = len(AUTOFILL_DEFAULTS) - len([f for f in AUTOFILL_DEFAULTS if f in remaining])
+        return RequirementTurn(
+            assistant_message=(
+                f"I filled {filled} remaining section(s) with Alladin best-practice "
+                "defaults — review them in the summary and adjust anything you like."
+                if not remaining
+                else "I could not complete every section automatically; "
+                + QUESTION_PER_FIELD.get(remaining[0], "")
+            ),
             requirements=content,
             completion=completion_of(content),
             missing_fields=remaining,

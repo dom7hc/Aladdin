@@ -14,15 +14,13 @@ import { formatClockTime } from '@/lib/format'
 import { statusMeta } from '@/lib/status'
 import { useProjectQuery } from '@/hooks/useProject'
 import {
+  useAutofillRequirements,
   useChatMessagesQuery,
   useFinalizeRequirements,
   useRequirementsQuery,
   useSendMessage,
 } from '@/hooks/useRequirements'
 import type { RequirementData } from '@/types'
-
-const AUTOFILL_MESSAGE =
-  "Let's export the results to CSV and show a searchable web dashboard. Success means reducing manual review time by 75%."
 
 export function ChatPage() {
   const { id } = useParams<{ id: string }>()
@@ -34,6 +32,7 @@ export function ChatPage() {
   const messagesQuery = useChatMessagesQuery(id)
   const requirementsQuery = useRequirementsQuery(id)
   const sendMessage = useSendMessage(id ?? '')
+  const autofill = useAutofillRequirements(id ?? '')
   const finalize = useFinalizeRequirements(id ?? '')
 
   const messages = messagesQuery.data ?? []
@@ -190,9 +189,15 @@ export function ChatPage() {
               requirements={requirements}
               completion={completion}
               onReview={handleReview}
-              onAutofill={() => setDraft(AUTOFILL_MESSAGE)}
+              onAutofill={() => autofill.mutate()}
+              autofilling={autofill.isPending}
               finalizing={finalize.isPending}
             />
+            {autofill.isError && (
+              <p className="text-sm text-error">
+                Alladin could not autofill the sections. Please try again.
+              </p>
+            )}
             {finalize.isError && (
               <p className="text-sm text-error">
                 Could not finalize requirements. Ensure all required fields are filled.

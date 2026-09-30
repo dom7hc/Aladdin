@@ -87,6 +87,37 @@ class ProjectService:
             ready=turn.ready,
         )
 
+    async def autofill_requirements(self, project_id: str) -> ChatResponse:
+        project = await self.repo.get_or_raise(project_id)
+        if project["status"] != "REQUIREMENT_COLLECTION":
+            raise InvalidTransitionError("Requirements are already finalized for this project.")
+        content: dict[str, Any] = project["requirements"]["content"]
+
+        missing = missing_fields(content)
+        if not missing:
+            return ChatResponse(
+                message=(
+                    "Every section is already filled — review the summary and "
+                    "generate whenever you are ready."
+                ),
+                requirements=content,
+                completion=completion_of(content),
+                missing_fields=[],
+                ready=True,
+            )
+
+        recent = await self.messages.recent(project_id)
+        turn = await self.requirement_agent.autofill(content, recent)
+        await self.repo.update_requirements(project_id, turn.requirements, turn.completion)
+        await self.messages.insert(project_id, "assistant", turn.assistant_message)
+        return ChatResponse(
+            message=turn.assistant_message,
+            requirements=turn.requirements,
+            completion=turn.completion,
+            missing_fields=turn.missing_fields,
+            ready=turn.ready,
+        )
+
     async def chat_history(self, project_id: str) -> list[ChatMessageResponse]:
         await self.repo.get_or_raise(project_id)
         docs = await self.messages.history(project_id)
