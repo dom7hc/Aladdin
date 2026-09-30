@@ -21,7 +21,7 @@ from app.agents.llm import (
     _extract_json,
     build_llm_agents,
 )
-from app.agents.stubs import StubDeveloperAgent
+from app.agents.stubs import QUESTION_PER_FIELD, StubDeveloperAgent
 from app.schemas.project import empty_requirements
 from app.workspace import workspace as ws
 
@@ -334,3 +334,47 @@ def test_build_llm_agents_returns_llm_types(monkeypatch):
     assert isinstance(developer, LlmDeveloperAgent)
     assert isinstance(reviewer, LlmReviewerAgent)
     assert isinstance(tester, LlmTesterAgent)
+
+
+async def test_requirement_agent_never_claims_complete_while_blocked():
+    """A user must never be told they are finished while Generate is blocked.
+
+    Observed in production: the model answered "The requirements are complete"
+    with `features` still empty, so the project sat at 86% and the user had
+    nothing left to answer. Readiness is deterministic, so the reply must
+    always end on the question that unblocks it.
+    """
+    filled = empty_requirements("HR assistant")
+    filled.update(
+        targetUsers=["HR staff"],
+        mainWorkflow=["Ask a question", "Get an answer"],
+        inputs=["A question"],
+        outputs=["An answer"],
+        successCriteria=["Answers are grounded"],
+    )
+    client = FakeClient(
+        json.dumps(
+            {"requirements": {}, "reply": "Thanks for confirming. The requirements are complete."}
+        )
+    )
+    turn = await LlmRequirementAgent(DeepSeekClient(client=client)).run(filled, [], "nothing")
+
+    assert turn.ready is False
+    assert turn.missing_fields == ["features"]
+    # The model's own words are kept, but the blocking question is appended.
+    assert "The requirements are complete." in turn.assistant_message
+    assert QUESTION_PER_FIELD["features"] in turn.assistant_message
+
+
+async def test_requirement_agent_does_not_duplicate_a_question_it_already_asked():
+    filled = empty_requirements("HR assistant")
+    filled.update(
+        targetUsers=["HR staff"],
+        mainWorkflow=["Ask", "Answer"],
+        inputs=["A question"],
+        outputs=["An answer"],
+        successCriteria=["Grounded"],
+    )
+    client = FakeClient(json.dumps({"requirements": {}, "reply": QUESTION_PER_FIELD["features"]}))
+    turn = await LlmRequirementAgent(DeepSeekClient(client=client)).run(filled, [], "go on")
+    assert turn.assistant_message.count(QUESTION_PER_FIELD["features"]) == 1
