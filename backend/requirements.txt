@@ -4,3 +4,7 @@ motor>=3.6
 # OpenAI-compatible SDK; talks to DeepSeek (https://api.deepseek.com) when
 # LLM_ENABLED=true. Import is lazy, so stub mode never needs it at runtime.
 openai>=1.40
+# Builds the .pptx deck that presents a generated dashboard. Pure Python,
+# no system packages, and it emits native PowerPoint charts so the deck
+# stays editable without needing a headless browser for screenshots.
+python-pptx>=1.0
