@@ -1,0 +1,547 @@
+/* Dashboard design system — platform-owned.
+ *
+ * Two independent axes:
+ *   data-theme  the accent the end user picked (6 options)
+ *   data-mode   light | dark, or absent to follow the OS
+ *
+ * Neutrals and chart series colours are shared across themes; only the accent
+ * varies. That keeps every theme legible by construction and means a new theme
+ * is three values, not a new palette.
+ *
+ * The series palette is the validated categorical set: fixed hue order, never
+ * cycled. Three of the light hues sit below 3:1 against white, which is why
+ * every chart in this kit ships a legend AND direct labels — the contrast
+ * relief is mandatory, not decorative.
+ */
+
+:root {
+  /* Neutrals — light */
+  --surface-0: #ffffff;
+  --surface-1: #f7f8fa;
+  --surface-2: #eef0f4;
+  --ink-1: #14161c;
+  --ink-2: #4a4f5c;
+  --ink-3: #757c8c;
+  --line: #e2e5ec;
+  --line-soft: #eef0f4;
+  --shadow: 0 1px 2px rgb(20 22 28 / 6%), 0 8px 24px -16px rgb(20 22 28 / 24%);
+
+  /* Chart series — light steppings, fixed order */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  /* Status — reserved, never reused as a series colour */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+
+  /* Resolved accent; the mode blocks below repoint these. */
+  --accent: var(--accent-l);
+  --accent-soft: var(--accent-soft-l);
+  --accent-ink: #ffffff;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+}
+
+/* --- Themes: each supplies a light and a dark accent ---------------------- */
+
+:root,
+:root[data-theme="indigo"] {
+  --accent-l: #4338ca;
+  --accent-d: #a5b4fc;
+  --accent-soft-l: #eef1ff;
+  --accent-soft-d: #23263f;
+}
+:root[data-theme="teal"] {
+  --accent-l: #0f766e;
+  --accent-d: #5eead4;
+  --accent-soft-l: #e6f6f4;
+  --accent-soft-d: #14302e;
+}
+:root[data-theme="amber"] {
+  --accent-l: #b45309;
+  --accent-d: #fcd34d;
+  --accent-soft-l: #fdf2e3;
+  --accent-soft-d: #33270f;
+}
+:root[data-theme="rose"] {
+  --accent-l: #be123c;
+  --accent-d: #fda4af;
+  --accent-soft-l: #fdeef1;
+  --accent-soft-d: #351a22;
+}
+:root[data-theme="violet"] {
+  --accent-l: #6d28d9;
+  --accent-d: #c4b5fd;
+  --accent-soft-l: #f2ecfe;
+  --accent-soft-d: #2a2143;
+}
+:root[data-theme="graphite"] {
+  --accent-l: #334155;
+  --accent-d: #cbd5e1;
+  --accent-soft-l: #eef1f5;
+  --accent-soft-d: #262b34;
+}
+
+/* --- Dark mode -----------------------------------------------------------
+ * Declared twice on purpose: the media query covers the OS setting, the
+ * data-mode scope covers the in-page switcher, and the :not() guard lets an
+ * explicit light choice beat an OS set to dark.
+ */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mode="light"]) {
+    --surface-0: #141821;
+    --surface-1: #1b202b;
+    --surface-2: #232937;
+    --ink-1: #f2f4f8;
+    --ink-2: #b7becd;
+    --ink-3: #8b93a5;
+    --line: #2c3342;
+    --line-soft: #232937;
+    --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -16px rgb(0 0 0 / 80%);
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+
+    --accent: var(--accent-d);
+    --accent-soft: var(--accent-soft-d);
+    --accent-ink: #141821;
+  }
+}
+
+:root[data-mode="dark"] {
+  --surface-0: #141821;
+  --surface-1: #1b202b;
+  --surface-2: #232937;
+  --ink-1: #f2f4f8;
+  --ink-2: #b7becd;
+  --ink-3: #8b93a5;
+  --line: #2c3342;
+  --line-soft: #232937;
+  --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -16px rgb(0 0 0 / 80%);
+
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+
+  --accent: var(--accent-d);
+  --accent-soft: var(--accent-soft-d);
+  --accent-ink: #141821;
+}
+
+/* --- Base ---------------------------------------------------------------- */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-1);
+  color: var(--ink-1);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+/* --- Shell --------------------------------------------------------------- */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 28px;
+  background: var(--surface-0);
+  border-bottom: 1px solid var(--line);
+}
+
+.shell-title {
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+
+.shell-sub {
+  color: var(--ink-3);
+  font-size: 0.85rem;
+}
+
+.shell-spacer {
+  flex: 1;
+}
+
+.shell-main {
+  padding: 24px 28px 48px;
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.row {
+  display: grid;
+  gap: 18px;
+}
+.row-4 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.row-2 {
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+}
+.row-rail {
+  grid-template-columns: minmax(200px, 240px) 1fr;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .row-rail {
+    grid-template-columns: 1fr;
+  }
+  .shell-main,
+  .shell-header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* --- Card -------------------------------------------------------------- */
+
+.card {
+  background: var(--surface-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+
+.card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.card-note {
+  color: var(--ink-3);
+  font-size: 0.8rem;
+}
+
+/* --- Stat tile --------------------------------------------------------- */
+
+.tile-label {
+  color: var(--ink-3);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tile-value {
+  font-size: 1.95rem;
+  font-weight: 650;
+  line-height: 1.1;
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tile-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.delta {
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.delta-up {
+  color: var(--good);
+}
+.delta-down {
+  color: var(--critical);
+}
+.delta-flat {
+  color: var(--ink-3);
+}
+
+/* --- Table ------------------------------------------------------------- */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  text-align: left;
+  padding: 10px 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+thead th[aria-sort] {
+  color: var(--accent);
+}
+
+tbody td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+tbody tr:hover {
+  background: var(--surface-1);
+}
+
+/* --- Status ------------------------------------------------------------ */
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.status-row:first-child {
+  border-top: none;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* Status is never colour alone — each pill carries its label as text. */
+.pill-good {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 13%, transparent);
+}
+.pill-warning {
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+}
+.pill-serious {
+  color: var(--serious);
+  background: color-mix(in srgb, var(--serious) 16%, transparent);
+}
+.pill-critical {
+  color: var(--critical);
+  background: color-mix(in srgb, var(--critical) 14%, transparent);
+}
+
+/* --- Controls ---------------------------------------------------------- */
+
+.btn {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--ink-1);
+  background: var(--surface-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 7px 12px;
+  cursor: pointer;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-accent:hover {
+  color: var(--accent-ink);
+  filter: brightness(1.08);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.swatch[aria-pressed="true"] {
+  border-color: var(--ink-1);
+}
+
+.rail {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.rail-group {
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 2px;
+}
+
+/* --- Chart ------------------------------------------------------------- */
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  fill: var(--ink-3);
+  font-size: 11px;
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chart-label {
+  fill: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+
+.legend-mark {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.tooltip {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10;
+  background: var(--surface-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  color: var(--ink-1);
+  white-space: nowrap;
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  color: var(--ink-3);
+  font-size: 0.88rem;
+  padding: 18px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
