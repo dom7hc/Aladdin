@@ -61,6 +61,14 @@ class LLMError(Exception):
     """Raised when the LLM API call fails or its output cannot be trusted."""
 
 
+class LLMParseError(LLMError):
+    """The model replied, but the reply was not usable JSON.
+
+    A separate type so the correction re-ask in ``_ask_for_json`` can target
+    parse failures without string-matching error messages.
+    """
+
+
 class DeepSeekClient:
     """Thin async wrapper over the OpenAI-compatible DeepSeek endpoint."""
 
@@ -142,7 +150,7 @@ def _extract_json(text: str) -> dict[str, Any]:
         cleaned = cleaned.removeprefix("json")
     start = cleaned.find("{")
     if start == -1:
-        raise LLMError("LLM output contained no JSON object")
+        raise LLMParseError("LLM output contained no JSON object")
     depth = 0
     in_string = False
     escaped = False
@@ -172,11 +180,54 @@ def _extract_json(text: str) -> dict[str, Any]:
                     try:
                         parsed = json.loads(candidate, strict=False)
                     except json.JSONDecodeError as exc:
-                        raise LLMError(f"LLM output was not valid JSON: {exc}") from exc
+                        raise LLMParseError(f"LLM output was not valid JSON: {exc}") from exc
                 if not isinstance(parsed, dict):
-                    raise LLMError("LLM JSON was not an object")
+                    raise LLMParseError("LLM JSON was not an object")
                 return parsed
-    raise LLMError("LLM JSON object was not closed")
+    raise LLMParseError("LLM JSON object was not closed")
+
+
+async def _ask_for_json(
+    client: DeepSeekClient,
+    system: str,
+    user: str,
+    validate: Any = None,
+    error_prefix: str = "",
+) -> dict[str, Any]:
+    """Structured-output call with ONE correction re-ask.
+
+    Observed live: the model occasionally emits syntactically invalid JSON or
+    skips fields the spec requires, and a single-shot call then fails the whole
+    project on a transient slip (three production runs lost to this). Parse
+    failures and validation errors go back to the model once with the problem
+    named; a second failure raises exactly as before. Transport errors,
+    truncation and empty replies are not retried — a re-ask cannot fix those.
+    """
+    ask = user
+    for attempt in (1, 2):
+        try:
+            payload = _extract_json(await client.complete(system, ask))
+        except LLMParseError as exc:
+            if attempt == 2:
+                raise
+            logger.warning("LLM emitted invalid JSON (%s); re-asking once", exc)
+            ask = (
+                f"{user}\n\nYour previous reply was not valid JSON ({exc}). Reply "
+                "again with STRICT, complete JSON only: no prose, no trailing "
+                "commas, escape newlines and double quotes inside strings."
+            )
+            continue
+        errors = validate(payload) if validate else []
+        if not errors:
+            return payload
+        if attempt == 2:
+            raise LLMError(error_prefix + "; ".join(errors[:6]))
+        logger.warning("LLM JSON failed validation; re-asking once: %s", "; ".join(errors[:3]))
+        ask = (
+            f"{user}\n\nYour previous reply had problems that make it unusable. "
+            "Reply again with STRICT JSON only, corrected:\n- " + "\n- ".join(errors[:6])
+        )
+    raise LLMError(error_prefix + "no usable JSON after retry")
 
 
 _REQUIREMENT_SYSTEM = (
@@ -380,19 +431,18 @@ class LlmArchitectAgent(ArchitectAgent):
         self.client = client or DeepSeekClient()
 
     async def run(self, requirements: dict[str, Any]) -> dict[str, Any]:
-        payload = _extract_json(
-            await self.client.complete(
-                _ARCHITECT_SYSTEM, json.dumps(requirements, ensure_ascii=False)
-            )
+        payload = await _ask_for_json(
+            self.client,
+            _ARCHITECT_SYSTEM,
+            json.dumps(requirements, ensure_ascii=False),
+            validate=validate_spec,
+            error_prefix="LLM dashboard spec is invalid: ",
         )
         # Filters are optional; a malformed one is dropped rather than failing
         # the run, since the dashboard is complete without it.
         dropped = prune_filters(payload)
         if dropped:
             logger.info("Dropped %d unusable filter(s) from the dashboard spec", dropped)
-        errors = validate_spec(payload)
-        if errors:
-            raise LLMError("LLM dashboard spec is invalid: " + "; ".join(errors[:6]))
         # Carried through so the generated dashboard opens on the theme the user
         # picked, whatever the model put in the spec.
         if requirements.get("theme") in THEMES:
@@ -432,40 +482,39 @@ class LlmDeveloperAgent(DeveloperAgent):
         architecture: dict[str, Any],
         feedback: list[str] | None = None,
     ) -> list[str]:
-        payload = _extract_json(
-            await self.client.complete(
-                "You are the code generator of an AI dashboard builder. Given "
-                "requirements and a dashboard spec, output STRICT JSON only: "
-                '{"files": [{"path": "...", "content": "..."}]}.\n'
-                "YOU DO NOT WRITE ANY UI. The dashboard is rendered by the "
-                "platform's own component kit from the spec, which the platform "
-                "writes — do not output it. Write only:\n"
-                "backend/ — a FastAPI app. backend/main.py MUST define GET "
-                "/health, and MUST implement every /api endpoint named by a "
-                "widget's 'endpoint', returning exactly the fields that widget "
-                "reads. backend/requirements.txt MUST list fastapi and "
-                "uvicorn[standard].\n"
-                "Endpoint payload shapes: a 'stat' endpoint returns one object "
-                "with its field, deltaField and trendField (trend is an array of "
-                "numbers); 'line', 'bar' and 'table' endpoints return "
-                "an ARRAY of objects whose keys are exactly the fields the widget "
-                "names. Seed 6-12 rows of realistic sample data in code so the "
-                "dashboard is populated on first load with no database.\n"
-                "Never write any frontend file — no CSS, no components, no "
-                "index.html. The whole frontend is platform-owned and any "
-                "frontend path is rejected.\n"
-                f"At most {MAX_GENERATED_FILES} files, 120 lines per file, write "
-                "tersely, no markdown fences inside content, no TODO "
-                "placeholders, and emit valid JSON (escape newlines in strings).",
-                json.dumps(
-                    {
-                        "requirements": requirements,
-                        "architecture": architecture,
-                        "repairFeedback": feedback or [],
-                    },
-                    ensure_ascii=False,
-                ),
-            )
+        payload = await _ask_for_json(
+            self.client,
+            "You are the code generator of an AI dashboard builder. Given "
+            "requirements and a dashboard spec, output STRICT JSON only: "
+            '{"files": [{"path": "...", "content": "..."}]}.\n'
+            "YOU DO NOT WRITE ANY UI. The dashboard is rendered by the "
+            "platform's own component kit from the spec, which the platform "
+            "writes — do not output it. Write only:\n"
+            "backend/ — a FastAPI app. backend/main.py MUST define GET "
+            "/health, and MUST implement every /api endpoint named by a "
+            "widget's 'endpoint', returning exactly the fields that widget "
+            "reads. backend/requirements.txt MUST list fastapi and "
+            "uvicorn[standard].\n"
+            "Endpoint payload shapes: a 'stat' endpoint returns one object "
+            "with its field, deltaField and trendField (trend is an array of "
+            "numbers); 'line', 'bar' and 'table' endpoints return "
+            "an ARRAY of objects whose keys are exactly the fields the widget "
+            "names. Seed 6-12 rows of realistic sample data in code so the "
+            "dashboard is populated on first load with no database.\n"
+            "Never write any frontend file — no CSS, no components, no "
+            "index.html. The whole frontend is platform-owned and any "
+            "frontend path is rejected.\n"
+            f"At most {MAX_GENERATED_FILES} files, 120 lines per file, write "
+            "tersely, no markdown fences inside content, no TODO "
+            "placeholders, and emit valid JSON (escape newlines in strings).",
+            json.dumps(
+                {
+                    "requirements": requirements,
+                    "architecture": architecture,
+                    "repairFeedback": feedback or [],
+                },
+                ensure_ascii=False,
+            ),
         )
         files = payload.get("files")
         if not isinstance(files, list) or not files:

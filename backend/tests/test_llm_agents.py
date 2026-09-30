@@ -244,9 +244,10 @@ async def test_architect_agent_returns_a_valid_dashboard_spec():
 
 
 async def test_architect_agent_rejects_a_non_dashboard_spec():
-    """An unknown layout must fail the run, not render an empty page."""
+    """An unknown layout must fail the run, not render an empty page. The model
+    gets one correction re-ask (which also fails here), then the run dies."""
     bad = {**VALID_SPEC, "layout": "chatbot"}
-    agent = LlmArchitectAgent(DeepSeekClient(client=FakeClient(json.dumps(bad))))
+    agent = LlmArchitectAgent(DeepSeekClient(client=FakeClient(json.dumps(bad), json.dumps(bad))))
     with pytest.raises(LLMError, match="layout"):
         await agent.run(empty_requirements("x"))
 
@@ -258,6 +259,54 @@ async def test_architect_agent_honours_the_users_theme():
     )
     spec = await agent.run({**empty_requirements("x"), "theme": "teal"})
     assert spec["theme"] == "teal"
+
+
+async def test_architect_reasks_once_on_invalid_json():
+    """Observed live: a transient JSON slip at the developer step failed the
+    whole project; the model gets one correction attempt, then fail fast."""
+    client = FakeClient(
+        '{"title": "Orders", "layout": "kpi-overview", "widgets": [', json.dumps(VALID_SPEC)
+    )
+    spec = await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
+    assert spec == VALID_SPEC
+    assert len(client.chat.completions.calls) == 2
+    retry = client.chat.completions.calls[1]["messages"][1]["content"]
+    assert "not valid JSON" in retry
+
+
+async def test_architect_reasks_once_on_an_invalid_spec():
+    bad = {**VALID_SPEC, "widgets": [{"kind": "stat", "label": "x"}]}  # endpoint+field missing
+    client = FakeClient(json.dumps(bad), json.dumps(VALID_SPEC))
+    spec = await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
+    assert spec == VALID_SPEC
+    assert len(client.chat.completions.calls) == 2
+    retry = client.chat.completions.calls[1]["messages"][1]["content"]
+    assert "'endpoint'" in retry  # the problem is named to the model
+
+
+async def test_architect_fails_after_the_second_invalid_spec():
+    bad = {**VALID_SPEC, "widgets": [{"kind": "stat", "label": "x"}]}
+    client = FakeClient(json.dumps(bad), json.dumps(bad))
+    with pytest.raises(LLMError, match="dashboard spec is invalid"):
+        await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
+    assert len(client.chat.completions.calls) == 2  # bounded: never more than one re-ask
+
+
+async def test_truncation_is_not_reasked():
+    client = FakeClient(("partial {", "length"), json.dumps(VALID_SPEC))
+    with pytest.raises(LLMError, match="truncated"):
+        await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
+    assert len(client.chat.completions.calls) == 1
+
+
+async def test_developer_reasks_once_on_invalid_json(llm_workspace: str):
+    files = [{"path": "backend/main.py", "content": "app = 1\n"}]
+    client = FakeClient('{"files": [broken', json.dumps({"files": files}))
+    written = await LlmDeveloperAgent(DeepSeekClient(client=client)).run(
+        llm_workspace, {}, VALID_SPEC
+    )
+    assert "backend/main.py" in written
+    assert len(client.chat.completions.calls) == 2
 
 
 async def test_developer_agent_writes_backend_and_the_platform_writes_the_spec(llm_workspace: str):
