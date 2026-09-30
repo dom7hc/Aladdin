@@ -348,7 +348,7 @@ export function handleMockRequest({ method, path, body }: MockRequest): unknown 
       const result = autofillMissing(current)
       const missingFields = missingRequirementFields(result.requirements)
       const message =
-        `I filled ${result.filledCount} remaining section(s) with Alladin best-practice ` +
+        `I filled ${result.filledCount} remaining section(s) with Aladdin best-practice ` +
         'defaults — review them in the summary and adjust anything you like.'
       state.requirements[projectId] = result.requirements
       state.messages[projectId] = [

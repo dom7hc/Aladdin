@@ -163,7 +163,6 @@ export function ResultPage() {
 
             <div className="relative z-10 flex flex-col gap-2">
               <span className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-secondary">
-                <MaterialIcon name="sparkles" size={13} />
                 Live Sandbox Endpoint
               </span>
               {preview.status === 'running' && sandboxUrl ? (
