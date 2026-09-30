@@ -496,3 +496,75 @@ tbody tr:hover {
     animation: none !important;
   }
 }
+
+/* Editable tables: inline add/edit controls and row actions. */
+.add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.add-row input {
+  flex: 1 1 140px;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--ink-1);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.add-row input:focus-visible,
+tbody input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+tbody input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-0);
+  color: var(--ink-1);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.cell-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.cell-actions .btn {
+  margin-inline-start: 6px;
+}
+
+.btn-danger {
+  color: var(--series-8);
+  border-color: var(--series-8);
+}
+
+.btn-danger:hover {
+  background: var(--series-8);
+  color: var(--surface-0);
+}
+
+.form-error {
+  margin: 6px 0;
+  color: var(--series-8);
+  font-size: 0.85rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}

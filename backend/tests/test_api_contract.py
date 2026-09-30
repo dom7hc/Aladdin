@@ -1,4 +1,4 @@
-"""API-contract functional check (Plan Â§8): hermetic regex-based tests."""
+"""API-contract functional check (Plan Ã‚Â§8): hermetic regex-based tests."""
 
 from pathlib import Path
 
@@ -100,3 +100,83 @@ async def test_battery_fails_on_contract_mismatch(tmp_path: Path, monkeypatch):
     assert "/api/missing" in (failed["result"]["stdout"] or "")
     # The battery stops at the first failure: no later steps are recorded.
     assert steps[-1]["step"] == "apiContract"
+
+
+def _write_spec(source: Path, spec: dict) -> None:
+    import json
+
+    (source / "frontend" / "src" / "dashboard.config.json").write_text(
+        json.dumps(spec), encoding="utf-8"
+    )
+
+
+EDITABLE_TABLE_SPEC = {
+    "title": "Onboarding",
+    "layout": "records-workspace",
+    "widgets": [
+        {
+            "kind": "table",
+            "title": "Outstanding steps",
+            "endpoint": "/api/joiners",
+            "editable": True,
+            "columns": [{"label": "ID", "field": "id"}, {"label": "Name", "field": "name"}],
+        }
+    ],
+}
+
+
+def test_spec_demands_crud_routes_for_editable_tables(tmp_path: Path):
+    source = make_source(
+        tmp_path,
+        backend='@app.get("/api/joiners")\n',  # reads only — CRUD missing
+        frontend="",
+    )
+    _write_spec(source, EDITABLE_TABLE_SPEC)
+    result = check_api_contract(source)
+    assert result["exitCode"] == 1
+    assert "POST /api/joiners" in result["stdout"]
+    assert "PUT /api/joiners/{param}" in result["stdout"]
+    assert "DELETE /api/joiners/{param}" in result["stdout"]
+
+
+def test_spec_crud_routes_satisfied_by_full_backend(tmp_path: Path):
+    source = make_source(
+        tmp_path,
+        backend=(
+            '@app.get("/api/joiners")\n@app.post("/api/joiners")\n'
+            '@app.put("/api/joiners/{joiner_id}")\n@app.delete("/api/joiners/{joiner_id}")\n'
+        ),
+        frontend="",
+    )
+    _write_spec(source, EDITABLE_TABLE_SPEC)
+    result = check_api_contract(source)
+    assert result["exitCode"] == 0
+    assert "mutating" in result["stdout"]
+
+
+def test_contract_is_method_aware(tmp_path: Path):
+    """A POST call must not pass on the strength of a GET route (this passed
+    under the old path-only matcher and 405'd at runtime)."""
+    source = make_source(
+        tmp_path,
+        backend='@app.get("/api/tasks")\n',
+        frontend="fetch('/api/tasks', { method: 'POST' })\n",
+    )
+    result = check_api_contract(source)
+    assert result["exitCode"] == 1
+    assert "POST /api/tasks" in result["stdout"]
+
+
+def test_read_only_spec_stays_get_only(tmp_path: Path):
+    spec = {
+        "title": "Orders",
+        "layout": "kpi-overview",
+        "widgets": [
+            {"kind": "stat", "label": "Orders", "field": "total", "endpoint": "/api/metrics"}
+        ],
+    }
+    source = make_source(tmp_path, backend='@app.get("/api/metrics")\n', frontend="")
+    _write_spec(source, spec)
+    result = check_api_contract(source)
+    assert result["exitCode"] == 0
+    assert "0 mutating" in result["stdout"]

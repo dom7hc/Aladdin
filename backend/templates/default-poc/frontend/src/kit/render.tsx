@@ -6,13 +6,17 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BarChart, LineChart } from "./charts";
 import type { DashboardSpec, Widget } from "./types";
-import { Card, DataTable, FilterRail, StatTile, ThemeSwitcher } from "./widgets";
+import { Card, DataTable, EditableDataTable, FilterRail, StatTile, ThemeSwitcher } from "./widgets";
 
 type Payload = Record<string, unknown> | Record<string, unknown>[];
 
 /** One fetch per distinct endpoint, shared by every widget that reads it. */
-function useEndpointData(endpoints: string[], filters: Record<string, string>) {
-  const key = `${endpoints.join("|")}::${JSON.stringify(filters)}`;
+function useEndpointData(
+  endpoints: string[],
+  filters: Record<string, string>,
+  refresh: number,
+) {
+  const key = `${endpoints.join("|")}::${JSON.stringify(filters)}::${refresh}`;
   const [data, setData] = useState<Record<string, Payload>>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -70,7 +74,15 @@ function asObject(payload: Payload | undefined): Record<string, unknown> {
   return (payload as Record<string, unknown>) ?? {};
 }
 
-function WidgetView({ widget, payload }: { widget: Widget; payload: Payload | undefined }) {
+function WidgetView({
+  widget,
+  payload,
+  onMutate,
+}: {
+  widget: Widget;
+  payload: Payload | undefined;
+  onMutate: () => void;
+}) {
   switch (widget.kind) {
     case "stat": {
       const source = asObject(payload);
@@ -106,7 +118,16 @@ function WidgetView({ widget, payload }: { widget: Widget; payload: Payload | un
     case "table":
       return (
         <Card title={widget.title}>
-          <DataTable rows={asRows(payload)} columns={widget.columns} />
+          {widget.editable ? (
+            <EditableDataTable
+              endpoint={widget.endpoint}
+              rows={asRows(payload)}
+              columns={widget.columns}
+              onMutate={onMutate}
+            />
+          ) : (
+            <DataTable rows={asRows(payload)} columns={widget.columns} />
+          )}
         </Card>
       );
     default:
@@ -154,6 +175,9 @@ function arrange(spec: DashboardSpec, node: (w: Widget) => ReactNode) {
 
 export function Dashboard({ spec }: { spec: DashboardSpec }) {
   const [filters, setFilters] = useState<Record<string, string>>({});
+  // Bumped by editable tables after a successful mutation; every endpoint then
+  // refetches, so stats and charts stay consistent with the table.
+  const [refresh, setRefresh] = useState(0);
 
   // index.html is a platform-owned fallback, so its <title> is generic. The
   // browser tab should name the dashboard, not say "PoC".
@@ -164,13 +188,14 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
     () => Array.from(new Set(spec.widgets.map((w) => w.endpoint))),
     [spec],
   );
-  const { data, error, loading } = useEndpointData(endpoints, filters);
+  const { data, error, loading } = useEndpointData(endpoints, filters, refresh);
 
   const node = (widget: Widget) => (
     <WidgetView
       key={`${widget.kind}-${"title" in widget ? widget.title : widget.label}`}
       widget={widget}
       payload={data[widget.endpoint]}
+      onMutate={() => setRefresh((r) => r + 1)}
     />
   );
 

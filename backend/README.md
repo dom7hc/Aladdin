@@ -90,6 +90,16 @@ Failure semantics: any LLM/API/validation error raises `LLMError` → the
 generation service marks the project `FAILED` (fail fast), except the tester's
 diagnosis which degrades to raw evidence.
 
+**Editable tables (CRUD in the generated PoC):** the architect may mark a table
+`"editable": true` (validated: it must have an `id` column). The developer then
+implements `POST <endpoint>`, `PUT <endpoint>/{id}` and `DELETE <endpoint>/{id}`
+backed by an auto-created, auto-seeded SQLite database (stdlib `sqlite3`, no new
+dependencies), and the kit renders add/edit/delete controls. The API-contract
+check is method-aware and enforces the CRUD routes — a GET-only backend for an
+editable table fails the battery with actionable repair feedback. Structured
+LLM output also gets one correction re-ask: parse or spec-validation failures
+go back to the model once with the problem named before the run fails.
+
 Configuration (see `.env.example`; `backend/.env` is **not** auto-loaded —
 export the variables in the shell, or set them in the VM's
 `/opt/aladdin/<env>/runtime.env` which `deploy/compose.yml` passes through):

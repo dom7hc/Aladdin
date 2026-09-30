@@ -69,8 +69,7 @@ export function DataTable({
 }: {
   rows: Record<string, unknown>[];
   columns: { label: string; field: string; align?: "left" | "right" }[];
-}) {
-  const [sort, setSort] = useState<{ field: string; dir: 1 | -1 } | null>(null);
+}) {  const [sort, setSort] = useState<{ field: string; dir: 1 | -1 } | null>(null);
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -125,6 +124,184 @@ export function DataTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+type TableColumn = { label: string; field: string; align?: "left" | "right" };
+
+/**
+ * A table whose rows users can create, edit and delete. The backend contract
+ * comes from the spec: POST <endpoint> creates, PUT/DELETE <endpoint>/{id}
+ * update and remove, and every row carries an "id" (validated by
+ * app/generation/spec.py).
+ */
+export function EditableDataTable({
+  endpoint,
+  rows,
+  columns,
+  onMutate,
+}: {
+  endpoint: string;
+  rows: Record<string, unknown>[];
+  columns: TableColumn[];
+  onMutate: () => void;
+}) {
+  const fields = columns.filter((col) => col.field !== "id");
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [editingId, setEditingId] = useState<unknown>(null);
+  const [editDraft, setEditDraft] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function mutate(path: string, method: string, body?: Record<string, unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      // method first: the api-contract check pairs this literal with the path.
+      const response = await fetch(path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error(`${method} ${path} returned ${response.status}`);
+      onMutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The change could not be saved");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const addDisabled = busy || fields.some((col) => !draft[col.field]?.trim());
+
+  return (
+    <div>
+      <div className="add-row">
+        {fields.map((col) => (
+          <input
+            key={col.field}
+            aria-label={col.label}
+            placeholder={col.label}
+            value={draft[col.field] ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, [col.field]: e.target.value }))}
+          />
+        ))}
+        <button
+          type="button"
+          className="btn btn-accent"
+          disabled={addDisabled}
+          onClick={() => {
+            mutate(endpoint, "POST", { ...draft });
+            setDraft({});
+          }}
+        >
+          Add
+        </button>
+      </div>
+
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+
+      {rows.length === 0 ? <p className="empty">No records yet — add the first one.</p> : null}
+
+      {rows.length > 0 ? (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                {columns.map((col) => (
+                  <th key={col.field} style={{ textAlign: col.align ?? "left" }}>
+                    {col.label}
+                  </th>
+                ))}
+                <th className="cell-actions">
+                  <span className="visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) =>
+                editingId !== null && row.id === editingId ? (
+                  <tr key={String(row.id)}>
+                    {columns.map((col) => (
+                      <td key={col.field}>
+                        {col.field === "id" ? (
+                          String(row.id)
+                        ) : (
+                          <input
+                            aria-label={col.label}
+                            value={editDraft[col.field] ?? ""}
+                            onChange={(e) =>
+                              setEditDraft((d) => ({ ...d, [col.field]: e.target.value }))
+                            }
+                          />
+                        )}
+                      </td>
+                    ))}
+                    <td className="cell-actions">
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        disabled={busy}
+                        onClick={() => {
+                          mutate(`${endpoint}/${row.id}`, "PUT", { ...editDraft });
+                          setEditingId(null);
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setEditingId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={String(row.id)}>
+                    {columns.map((col) => (
+                      <td key={col.field} style={{ textAlign: col.align ?? "left" }}>
+                        {typeof row[col.field] === "number"
+                          ? formatNumber(row[col.field] as number)
+                          : String(row[col.field] ?? "")}
+                      </td>
+                    ))}
+                    <td className="cell-actions">
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => {
+                          setEditingId(row.id);
+                          setEditDraft(
+                            Object.fromEntries(fields.map((col) => [col.field, String(row[col.field] ?? "")])),
+                          );
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        disabled={busy}
+                        onClick={() => mutate(`${endpoint}/${row.id}`, "DELETE")}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ),
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

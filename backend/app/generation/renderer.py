@@ -47,6 +47,8 @@ def _widget_line(widget: dict[str, Any]) -> str:
         detail = " — " + ", ".join(str(c.get("label", "")) for c in columns if isinstance(c, dict))
     elif widget.get("field"):
         detail = f" — {widget['field']}"
+    if widget.get("editable"):
+        detail += " — editable"
     return f"- **{name}** (`{kind}`, `{endpoint}`){detail}"
 
 
@@ -81,6 +83,21 @@ def render_architecture_md(architecture: dict[str, Any]) -> str:
     )
     lines.append("## Endpoints the backend must serve")
     lines += [f"- `{endpoint}`" for endpoint in endpoints] or ["- (none)"]
+    editable = [
+        w
+        for w in (widgets if isinstance(widgets, list) else [])
+        if isinstance(w, dict) and w.get("editable") and isinstance(w.get("endpoint"), str)
+    ]
+    if editable:
+        lines.append("")
+        lines.append("## CRUD routes for editable tables")
+        for widget in editable:
+            base = str(widget["endpoint"]).rstrip("/")
+            lines += [
+                f"- `POST {base}` — create a row",
+                f"- `PUT {base}/{{id}}` — update a row",
+                f"- `DELETE {base}/{{id}}` — delete a row",
+            ]
     lines.append("")
 
     filters = architecture.get("filters")

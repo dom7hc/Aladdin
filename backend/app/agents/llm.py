@@ -417,8 +417,10 @@ _ARCHITECT_SYSTEM = (
     '"stat" needs label and field, plus optional deltaField and trendField; '
     '"line" needs title, xField and series[{label, field}]; "bar" needs title, '
     'categoryField and series[{label, field}]; "table" needs title and '
-    "columns[{label, field}]. Status or health-pill widgets are not supported — "
-    "express that data as a stat or a table instead.\n"
+    "columns[{label, field}]; a table whose rows users should create, edit and "
+    'delete also takes "editable": true — then its first column must be '
+    '{"label": "ID", "field": "id"}. Status or health-pill widgets are not '
+    "supported — express that data as a stat or a table instead.\n"
     f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
     "the form by the data's job: a single headline number is a stat, change "
     "over time is a line, comparison across categories is a bar. Never two "
@@ -471,6 +473,40 @@ def _safe_generated_path(path: str) -> bool:
     return path.split("/", 1)[0] == "backend"
 
 
+_DEVELOPER_SYSTEM = (
+    "You are the code generator of an AI dashboard builder. Given "
+    "requirements and a dashboard spec, output STRICT JSON only: "
+    '{"files": [{"path": "...", "content": "..."}]}.\n'
+    "YOU DO NOT WRITE ANY UI. The dashboard is rendered by the "
+    "platform's own component kit from the spec, which the platform "
+    "writes — do not output it. Write only:\n"
+    "backend/ — a FastAPI app. backend/main.py MUST define GET "
+    "/health, and MUST implement every /api endpoint named by a "
+    "widget's 'endpoint', returning exactly the fields that widget "
+    "reads. backend/requirements.txt MUST list fastapi and "
+    "uvicorn[standard].\n"
+    "Endpoint payload shapes: a 'stat' endpoint returns one object "
+    "with its field, deltaField and trendField (trend is an array of "
+    "numbers); 'line', 'bar' and 'table' endpoints return "
+    "an ARRAY of objects whose keys are exactly the fields the widget "
+    "names. Seed 6-12 rows of realistic sample data in code so the "
+    "dashboard is populated on first load with no database.\n"
+    'A table with "editable": true is user-writable: implement '
+    "POST <endpoint> (create a row from the JSON body), PUT "
+    "<endpoint>/{id} and DELETE <endpoint>/{id}, with every row "
+    'carrying an "id". Persist those rows in an SQLite database '
+    "(python sqlite3, stdlib only) that the app creates and seeds "
+    "automatically on first start; GET keeps returning the full "
+    "list. Non-editable endpoints stay read-only sample data.\n"
+    "Never write any frontend file — no CSS, no components, no "
+    "index.html. The whole frontend is platform-owned and any "
+    "frontend path is rejected.\n"
+    f"At most {MAX_GENERATED_FILES} files, 120 lines per file, write "
+    "tersely, no markdown fences inside content, no TODO "
+    "placeholders, and emit valid JSON (escape newlines in strings)."
+)
+
+
 class LlmDeveloperAgent(DeveloperAgent):
     def __init__(self, client: DeepSeekClient | None = None) -> None:
         self.client = client or DeepSeekClient()
@@ -484,29 +520,7 @@ class LlmDeveloperAgent(DeveloperAgent):
     ) -> list[str]:
         payload = await _ask_for_json(
             self.client,
-            "You are the code generator of an AI dashboard builder. Given "
-            "requirements and a dashboard spec, output STRICT JSON only: "
-            '{"files": [{"path": "...", "content": "..."}]}.\n'
-            "YOU DO NOT WRITE ANY UI. The dashboard is rendered by the "
-            "platform's own component kit from the spec, which the platform "
-            "writes — do not output it. Write only:\n"
-            "backend/ — a FastAPI app. backend/main.py MUST define GET "
-            "/health, and MUST implement every /api endpoint named by a "
-            "widget's 'endpoint', returning exactly the fields that widget "
-            "reads. backend/requirements.txt MUST list fastapi and "
-            "uvicorn[standard].\n"
-            "Endpoint payload shapes: a 'stat' endpoint returns one object "
-            "with its field, deltaField and trendField (trend is an array of "
-            "numbers); 'line', 'bar' and 'table' endpoints return "
-            "an ARRAY of objects whose keys are exactly the fields the widget "
-            "names. Seed 6-12 rows of realistic sample data in code so the "
-            "dashboard is populated on first load with no database.\n"
-            "Never write any frontend file — no CSS, no components, no "
-            "index.html. The whole frontend is platform-owned and any "
-            "frontend path is rejected.\n"
-            f"At most {MAX_GENERATED_FILES} files, 120 lines per file, write "
-            "tersely, no markdown fences inside content, no TODO "
-            "placeholders, and emit valid JSON (escape newlines in strings).",
+            _DEVELOPER_SYSTEM,
             json.dumps(
                 {
                     "requirements": requirements,

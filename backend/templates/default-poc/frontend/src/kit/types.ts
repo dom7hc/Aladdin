@@ -38,6 +38,12 @@ export interface TableWidget {
   kind: "table";
   title: string;
   columns: { label: string; field: string; align?: "left" | "right" }[];
+  /**
+   * Editable tables render add/edit/delete controls and expect the backend to
+   * implement POST <endpoint>, PUT <endpoint>/{id} and DELETE <endpoint>/{id};
+   * rows carry an "id". Validated by app/generation/spec.py.
+   */
+  editable?: boolean;
 }
 
 export type Widget = (StatWidget | LineWidget | BarWidget | TableWidget) & {

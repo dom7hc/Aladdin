@@ -119,6 +119,14 @@ def validate_spec(spec: Any) -> list[str]:
             _check_series(widget, where, errors)
         if kind == "table":
             _check_columns(widget, where, errors)
+            if widget.get("editable") and not any(
+                isinstance(c, dict) and c.get("field") == "id"
+                for c in widget.get("columns", [])
+                if isinstance(c, dict)
+            ):
+                errors.append(
+                    f"{where}: 'editable' tables need an 'id' column so rows can be updated"
+                )
 
     if not any(isinstance(w, dict) and w.get("kind") in _VISUAL_KINDS for w in widgets):
         errors.append("a dashboard needs at least one stat, chart or table widget")

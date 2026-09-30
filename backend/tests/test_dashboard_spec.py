@@ -1,4 +1,4 @@
-"""Dashboard spec validation — the gate between the model and the renderer."""
+"""Dashboard spec validation â€” the gate between the model and the renderer."""
 
 from app.generation.spec import LAYOUTS, THEMES, prune_filters, spec_endpoints, validate_spec
 
@@ -132,7 +132,7 @@ def test_layouts_and_themes_match_the_typescript_kit():
     union = re.search(r"export type Layout\s*=([^;]+);", types_ts, re.DOTALL)
     assert union, "kit/types.ts no longer declares a Layout type"
     declared = set(re.findall(r'"([a-z-]+)"', union.group(1)))
-    assert LAYOUTS == declared, f"Layout drift — python {LAYOUTS}, kit {declared}"
+    assert LAYOUTS == declared, f"Layout drift â€” python {LAYOUTS}, kit {declared}"
 
     theme_css = (kit / "theme.css").read_text(encoding="utf-8")
     styled = set(re.findall(r'\[data-theme="([a-z]+)"\]', theme_css))
@@ -170,7 +170,7 @@ def test_the_status_widget_is_retired_everywhere():
         assert "StatusList" not in body, f"{name} still references StatusList"
         assert not re.search(r'kind:\s*"status"', body), f"{name} still declares a status widget"
 
-    # The prompts must not advertise retired concepts either — observed live:
+    # The prompts must not advertise retired concepts either â€” observed live:
     # the architect prompt still taught "status" widgets and the
     # operations-monitor layout, so the model emitted them and validate_spec
     # failed the whole run.
@@ -180,3 +180,37 @@ def test_the_status_widget_is_retired_everywhere():
     assert '"status"' not in _ARCHITECT_SYSTEM
     for kind in REQUIRED_BY_KIND:
         assert f'"{kind}"' in _ARCHITECT_SYSTEM, f"prompt no longer teaches kind {kind}"
+
+
+def test_editable_tables_need_an_id_column():
+    """Editable tables promise row identity for PUT/DELETE; without an id
+    column the generated UI could never address a row."""
+    widget = {"kind": "table", "title": "Joiners", "endpoint": "/api/joiners"}
+
+    def spec(columns: list[dict], editable: bool | None = None) -> dict:
+        entry = {**widget, "columns": columns}
+        if editable is not None:
+            entry["editable"] = editable
+        return {"title": "Onboarding", "layout": "kpi-overview", "widgets": [entry]}
+
+    good = spec([{"label": "ID", "field": "id"}, {"label": "Name", "field": "name"}], True)
+    assert validate_spec(good) == []
+
+    bad = spec([{"label": "Name", "field": "name"}], True)
+    assert any("editable" in error and "id" in error for error in validate_spec(bad))
+
+    # Read-only tables never need the id column.
+    assert validate_spec(spec([{"label": "Name", "field": "name"}])) == []
+    assert validate_spec(spec([{"label": "Name", "field": "name"}], False)) == []
+
+
+def test_prompts_teach_the_editable_table_contract():
+    """Drift guard: the architect must offer editable tables and the developer
+    must know the CRUD + SQLite contract, or the model cannot produce what the
+    kit and the contract check expect."""
+    from app.agents.llm import _ARCHITECT_SYSTEM, _DEVELOPER_SYSTEM
+
+    assert '"editable"' in _ARCHITECT_SYSTEM
+    assert '"field": "id"' in _ARCHITECT_SYSTEM
+    for token in ("POST <endpoint>", "PUT <endpoint>/{id}", "DELETE <endpoint>/{id}", "SQLite"):
+        assert token in _DEVELOPER_SYSTEM, f"developer prompt lost: {token}"
