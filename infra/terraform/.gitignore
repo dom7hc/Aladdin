@@ -1,0 +1,19 @@
+# Provider plugins, downloaded by `terraform init`.
+.terraform/
+
+# State holds secrets in plain text. It lives in Azure storage, never in Git.
+*.tfstate
+*.tfstate.*
+
+# Saved plans can contain secrets too.
+tfplan
+*.tfplan
+
+crash.log
+crash.*.log
+
+# Personal overrides.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
