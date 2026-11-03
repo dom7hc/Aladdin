@@ -61,9 +61,13 @@ and Terraform creates the three assignments itself; step 3 disappears.
   azurerm cannot send. It is therefore an `azapi_resource` driven by
   `claude_deployment` in `terraform.tfvars`. `null` (the default) means it is
   not deployed. `enable_foundry = false` removes Foundry entirely.
-- **LLM mode is off on the VM.** `app/agents/llm.py` always sends a `thinking`
-  field, which Foundry rejects. Once the backend stops sending it, run
-  `./configure-vm.ps1 -LlmEnabled $true`.
+- **LLM mode on the VM** uses the `deepseek` deployment with
+  `LLM_THINKING=omit` (Foundry rejects the DeepSeek-only `thinking` field).
+  `./configure-vm.ps1 -LlmEnabled $false` switches back to the stub agents.
+- **Claude (`claude-opus-5-5`) was deployed by hand in the Foundry portal** and
+  is not in Terraform; redo it after a rebuild. It only answers on the
+  Anthropic API (`https://n4s-aladdin-foundry.services.ai.azure.com/anthropic/`),
+  not the OpenAI-style endpoint.
 - **The corporate proxy can hang a run.** Terraform has no request timeout of
   its own. If a run stalls, stop it, check that no terraform process is left,
   then run `terraform force-unlock <id>`; the ID is in the error the next run

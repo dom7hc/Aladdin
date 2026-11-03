@@ -10,9 +10,9 @@ param(
     [string]$ResourceGroup = 'Need4Sleep',
     [string]$VmName        = 'n4sServer',
     [string]$LlmModel      = 'deepseek',
-    # Off until app/agents/llm.py stops sending the DeepSeek-only `thinking`
-    # field, which Foundry rejects (unrecognized_request_argument).
-    [bool]$LlmEnabled      = $false
+    # Needs the backend's LLM_THINKING=omit support (fix/foundry-llm); older
+    # code always sends `thinking`, which Foundry rejects.
+    [bool]$LlmEnabled      = $true
 )
 $ErrorActionPreference = 'Stop'
 $TerraformDir = Join-Path $PSScriptRoot 'terraform'
@@ -49,6 +49,8 @@ $common = @(
     "LLM_BASE_URL=$(Get-TfOutput 'foundry_openai_base_url')"
     "LLM_API_KEY=$(Get-TfOutput 'foundry_api_key')"
     "LLM_MODEL=$LlmModel"
+    # Foundry rejects the DeepSeek-only thinking field.
+    "LLM_THINKING=omit"
 ) -join "`n"
 $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($common + "`n"))
 
