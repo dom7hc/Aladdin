@@ -61,11 +61,25 @@ set -eu
 # Docker's group only exists once cloud-init has finished installing it.
 cloud-init status --wait >/dev/null || true
 gid="$(getent group docker | cut -d: -f3)"
+# The payload arrives as the named parameter ALADDIN_ENV_B64, which Run
+# Command exports as an environment variable. Not positional: Run Command
+# splits a bare argument on '=', and base64 padding ends in '='.
+if [ -z "${ALADDIN_ENV_B64:-}" ]; then
+  echo "ALADDIN_ENV_B64 not received; runtime.env left unchanged" >&2
+  exit 1
+fi
 for env_name in development production; do
   dir="/opt/aladdin/$env_name"
   install -d -m 0750 "$dir"
   umask 077
-  { echo "$1" | base64 -d; echo "DOCKER_GID=$gid"; } >"$dir/runtime.env.new"
+  printf '%s' "$ALADDIN_ENV_B64" | base64 -d >"$dir/runtime.env.new"
+  echo "DOCKER_GID=$gid" >>"$dir/runtime.env.new"
+  # Never replace a working file with one that would fail every deploy.
+  if ! grep -q '^MONGODB_URI=mongodb' "$dir/runtime.env.new"; then
+    rm -f "$dir/runtime.env.new"
+    echo "Decoded runtime.env has no MONGODB_URI; $dir/runtime.env left unchanged" >&2
+    exit 1
+  fi
   chown root:root "$dir/runtime.env.new"
   chmod 0600 "$dir/runtime.env.new"
   mv "$dir/runtime.env.new" "$dir/runtime.env"
@@ -83,7 +97,7 @@ $scriptFile = Join-Path ([IO.Path]::GetTempPath()) 'aladdin-write-env.sh'
 try {
     [IO.File]::WriteAllText($scriptFile, $writeEnv)
     Write-Host 'Writing runtime.env for both environments'
-    Invoke-RunCommand $scriptFile @($encoded)
+    Invoke-RunCommand $scriptFile @("ALADDIN_ENV_B64=$encoded")
 } finally {
     Remove-Item $scriptFile -ErrorAction SilentlyContinue
 }
