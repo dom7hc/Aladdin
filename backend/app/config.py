@@ -47,7 +47,8 @@ LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
 # deepseek-flash reasons without bound by default and can exhaust the whole
 # token budget before emitting any content (observed: 32k reasoning tokens,
 # zero output). Structured agents default to thinking disabled; set "enabled"
-# for open-ended chat workloads.
+# for open-ended chat workloads. "omit" sends no thinking field at all, which
+# Azure Foundry requires (it rejects the field as unrecognized).
 LLM_THINKING = os.getenv("LLM_THINKING", "disabled")
 
 # Generated-PoC preview deployment. The backend builds and runs the generated

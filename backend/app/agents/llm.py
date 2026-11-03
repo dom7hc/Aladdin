@@ -121,6 +121,10 @@ class DeepSeekClient:
             kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
             if self.reasoning_effort != "off":
                 kwargs["reasoning_effort"] = self.reasoning_effort
+        elif self.thinking == "omit":
+            # Azure Foundry rejects the DeepSeek-only `thinking` field, and its
+            # DeepSeek does not reason unless reasoning_effort is sent.
+            pass
         else:
             kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
         try:

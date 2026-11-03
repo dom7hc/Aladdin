@@ -131,6 +131,14 @@ def test_deepseek_client_sends_reasoning_effort():
     assert client._client.chat.completions.calls[0]["reasoning_effort"] == "high"
 
 
+def test_deepseek_client_omits_thinking_field_for_foundry():
+    client = DeepSeekClient(client=FakeClient("ok"), thinking="omit", reasoning_effort="low")
+    asyncio.run(client.complete("sys", "user"))
+    call = client._client.chat.completions.calls[0]
+    assert "extra_body" not in call
+    assert "reasoning_effort" not in call
+
+
 def test_deepseek_client_omits_reasoning_effort_when_off():
     client = DeepSeekClient(client=FakeClient("ok"), thinking="enabled", reasoning_effort="off")
     asyncio.run(client.complete("sys", "user"))
