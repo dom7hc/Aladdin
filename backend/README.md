@@ -112,7 +112,10 @@ export the variables in the shell, or set them in the VM's
   thinking models spend reasoning tokens from the same `max_tokens` budget;
   `deepseek-flash` with default thinking has been observed to spend the entire
   budget on reasoning and return zero content, so the structured agents run
-  with thinking disabled
+  with thinking disabled. Set `LLM_THINKING=omit` for Azure Foundry, which
+  rejects the `thinking` field; its DeepSeek does not reason by default
+  (Foundry: `LLM_BASE_URL=https://<resource>.openai.azure.com/openai/v1/`,
+  `LLM_MODEL=<deployment name>`)
 
 ## Preview deployment (generated PoC as containers)
 
