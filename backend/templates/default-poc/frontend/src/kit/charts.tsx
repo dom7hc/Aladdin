@@ -41,7 +41,14 @@ function niceTicks(min: number, max: number, count = 4): number[] {
   const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? mag * 10;
   const start = Math.floor(min / step) * step;
   const ticks: number[] = [];
-  for (let v = start; v <= max + step / 2; v += step) ticks.push(Number(v.toFixed(10)));
+  // Keep going until a tick reaches the data's max. Stopping half a step past
+  // it left anything in that last half-step above the axis, drawn over the
+  // chart title (data max 12, ticks 0/5/10).
+  for (let v = start; ; v += step) {
+    const tick = Number(v.toFixed(10));
+    ticks.push(tick);
+    if (tick >= max) break;
+  }
   return ticks;
 }
 

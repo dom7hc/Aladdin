@@ -4,6 +4,9 @@
 // names. Everything visual lives in src/kit/, which the platform owns.
 import { Dashboard } from "./kit/render";
 import "./kit/theme.css";
+// After theme.css so its per-project tokens win. The template ships a default
+// copy; the platform overwrites it at generation time.
+import "./kit/design.css";
 import type { DashboardSpec } from "./kit/types";
 import spec from "./dashboard.config.json";
 
