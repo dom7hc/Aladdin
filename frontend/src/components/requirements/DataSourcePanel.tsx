@@ -3,7 +3,7 @@ import { useRef } from 'react'
 import { Button } from '@/components/ui/Button'
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
 import { useDatasetQuery, useDeleteDataset, useUploadDataset } from '@/hooks/useDataset'
-import type { DatasetColumnType } from '@/types'
+import type { DatasetColumnType, DatasetInfo } from '@/types'
 
 const TYPE_ICON: Record<DatasetColumnType, string> = {
   integer: 'tag',
@@ -34,13 +34,13 @@ export function DataSourcePanel({ projectId }: { projectId: string }) {
     <div className="glass-card flex flex-col gap-3 p-5 sm:p-6">
       <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2">
         <span className="text-base font-bold tracking-wide text-on-surface">Your data</span>
-        <span className="text-[11px] text-outline">CSV or Excel · up to 5 MB</span>
+        <span className="text-[11px] text-outline">CSV, Excel or PDF · up to 5 MB</span>
       </div>
 
       <input
         ref={input}
         type="file"
-        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        accept=".csv,.xlsx,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="hidden"
         onChange={(event) => onFile(event.target.files?.[0])}
       />
@@ -83,6 +83,7 @@ export function DataSourcePanel({ projectId }: { projectId: string }) {
               {note}
             </p>
           ))}
+          <PreviewRows dataset={dataset} />
           <p className="text-xs leading-relaxed text-on-surface-variant">
             The dashboard will be built on these columns and rows.
           </p>
@@ -93,8 +94,8 @@ export function DataSourcePanel({ projectId }: { projectId: string }) {
       ) : (
         <>
           <p className="text-xs leading-relaxed text-on-surface-variant">
-            Upload a spreadsheet and the dashboard is built on your real numbers instead of sample
-            data.
+            Upload a spreadsheet or a PDF report and the dashboard is built on your real numbers
+            instead of sample data.
           </p>
           <Button
             variant="secondary"
@@ -103,7 +104,7 @@ export function DataSourcePanel({ projectId }: { projectId: string }) {
             onClick={pick}
             loading={upload.isPending || datasetQuery.isPending}
           >
-            Upload CSV or Excel
+            Upload a file
           </Button>
         </>
       )}
@@ -114,4 +115,42 @@ export function DataSourcePanel({ projectId }: { projectId: string }) {
       {remove.isError && <p className="text-xs text-error">Could not remove the file.</p>}
     </div>
   )
+}
+
+/** The first rows as read, so the user can confirm them, a PDF's above all. */
+function PreviewRows({ dataset }: { dataset: DatasetInfo }) {
+  const rows = dataset.preview.slice(0, 3)
+  if (rows.length === 0) return null
+  return (
+    <div className="overflow-x-auto rounded-lg border border-outline-variant/50">
+      <table className="w-full text-left text-[11px]">
+        <thead className="bg-surface-container text-outline">
+          <tr>
+            {dataset.columns.map((column) => (
+              <th key={column.key} className="whitespace-nowrap px-2 py-1 font-semibold">
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={index} className="border-t border-outline-variant/40 text-on-surface">
+              {dataset.columns.map((column) => (
+                <td key={column.key} className="whitespace-nowrap px-2 py-1">
+                  {formatCell(row[column.key])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function formatCell(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'boolean') return value ? 'yes' : 'no'
+  return String(value)
 }

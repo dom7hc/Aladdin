@@ -92,7 +92,7 @@ REFUSED = {
     ),
     "exe-as-csv": ("renamed.csv", lambda: b"MZ\x90\x00\x03\x00\x00\x00" + b"\x00" * 64, 415, "CSV"),
     "exe-as-xlsx": ("renamed.xlsx", lambda: b"MZ\x90\x00\x03\x00\x00\x00", 415, "Excel"),
-    "wrong-extension": ("notes.txt", lambda: b"hello", 415, ".csv or .xlsx"),
+    "wrong-extension": ("notes.txt", lambda: b"hello", 415, "CSV, Excel"),
     "blank": ("empty.csv", lambda: b"  \n", 422, "empty"),
     "header-only": ("header-only.csv", lambda: b"a,b\n", 422, "no data rows"),
 }

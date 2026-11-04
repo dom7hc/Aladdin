@@ -21,7 +21,7 @@ from app.agents.base import (
     ReviewerAgent,
     TesterAgent,
 )
-from app.agents.llm import LlmRequirementAgent, build_llm_agents
+from app.agents.llm import ClaudeClient, LlmRequirementAgent, build_llm_agents
 from app.agents.stubs import (
     StubArchitectAgent,
     StubDeveloperAgent,
@@ -30,7 +30,7 @@ from app.agents.stubs import (
     StubTesterAgent,
 )
 from app.catalogue import as_public_list
-from app.ingest import spreadsheet
+from app.ingest import pdf, spreadsheet
 from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.project_repository import ProjectNotFoundError
 from app.schemas.project import (
@@ -256,7 +256,7 @@ async def upload_dataset(
     service: Annotated[ProjectService, Depends(get_project_service)],
     datasets: Annotated[DatasetRepository, Depends(get_dataset_repository)],
 ) -> DatasetResponse:
-    """A CSV or Excel file the dashboard is built on, replacing any earlier one."""
+    """A CSV, Excel or PDF file the dashboard is built on, replacing any earlier one."""
     project = await _guard(project_id, service.get(project_id))
     if project.status in ProjectService.GENERATING_STATUSES:
         raise HTTPException(
@@ -264,8 +264,18 @@ async def upload_dataset(
         )
     # One byte over the cap is enough to refuse; never read an unbounded body.
     data = await file.read(spreadsheet.MAX_BYTES + 1)
+    name = file.filename or "upload"
     try:
-        dataset = spreadsheet.parse(file.filename or "upload", data)
+        if name.lower().endswith(".pdf"):
+            if not config.CLAUDE_FOUNDRY_RESOURCE:
+                raise HTTPException(
+                    status_code=415,
+                    detail="Reading PDFs needs Claude, which is not set up here; "
+                    "upload a CSV or Excel file instead.",
+                )
+            dataset = await pdf.parse(name, data, ClaudeClient())
+        else:
+            dataset = spreadsheet.parse(name, data)
     except spreadsheet.DatasetError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from None
     await datasets.save(project_id, dataset)

@@ -1,7 +1,7 @@
 // Mock of backend/app/ingest/spreadsheet.py for the default demo path. Same
 // limits, key rules and type inference, so a CSV that works here works there.
-// The one gap: parsing .xlsx needs a library the mock does not ship, so Excel
-// is refused with a message pointing at the real backend.
+// The gaps: .xlsx needs a library the mock does not ship and .pdf needs Claude,
+// so both are refused with a message pointing at the real backend.
 import { ApiError } from '@/api/errors'
 import type { DatasetColumn, DatasetColumnType, DatasetInfo } from '@/types'
 
@@ -15,10 +15,10 @@ const BOOLEANS: Record<string, boolean> = { true: true, false: false, yes: true,
 export function parseMockDataset(filename: string, size: number, text: string): DatasetInfo {
   if (size > MAX_BYTES) throw new ApiError(413, 'File is larger than 5 MB.')
   const lower = filename.toLowerCase()
-  if (lower.endsWith('.xlsx')) {
-    throw new ApiError(415, 'Excel files need the real backend; in the demo, upload a CSV.')
+  if (lower.endsWith('.xlsx') || lower.endsWith('.pdf')) {
+    throw new ApiError(415, 'Excel and PDF files need the real backend; in the demo, upload a CSV.')
   }
-  if (!lower.endsWith('.csv')) throw new ApiError(415, 'Upload a .csv or .xlsx file.')
+  if (!lower.endsWith('.csv')) throw new ApiError(415, 'Upload a CSV, Excel (.xlsx) or PDF file.')
   if (text.slice(0, 4096).includes('\u0000')) {
     throw new ApiError(415, 'This does not look like a CSV text file.')
   }
