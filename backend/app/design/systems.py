@@ -171,6 +171,7 @@ class FontPairing:
 class DesignSystem:
     palette: Palette
     fonts: FontPairing
+    style: str = "soft-ui-evolution"
 
 
 def _slug(text: str) -> str:
@@ -248,6 +249,24 @@ def excluded_palette_count() -> int:
 DEFAULT_PALETTE_ID = "saas-general"
 DEFAULT_PAIRING_ID = "modern-professional"
 
+# Looks: shape, depth and density, implemented in the template's kit/looks.css.
+# Ten of ui-ux-pro-max's 88 styles, chosen for dashboards: active upstream,
+# light and dark supported, accessibility risk low or manageable. The ids are
+# upstream's; the descriptions are condensed from its "Best For" column.
+STYLES: dict[str, str] = {
+    "soft-ui-evolution": "soft modern depth; enterprise, SaaS, health and wellness",
+    "minimalism-and-swiss-style": "no radius or shadow, generous space; enterprise, documentation",
+    "flat-design": "solid, crisp, no depth; startup tools, cross-platform apps",
+    "fluent-2": "Microsoft-style subtle depth; enterprise line-of-business",
+    "data-dense-dashboard": "compact, many numbers per screen; BI, finance, operations",
+    "executive-dashboard": "large KPIs with a status edge; C-suite summaries",
+    "bento-box-grid": "large rounded tiles; product and portfolio overviews",
+    "claymorphism": "soft thick edges, playful; education, consumer, creative",
+    "glassmorphism": "frosted cards over colour; modern SaaS, fintech, premium",
+    "aurora-ui": "plain cards over layered colour light; creative, marketing, modern SaaS",
+}
+DEFAULT_STYLE_ID = "soft-ui-evolution"
+
 
 def palette_by_id(palette_id: str | None) -> Palette:
     lookup = {p.id: p for p in palettes()}
@@ -259,9 +278,24 @@ def pairing_by_id(pairing_id: str | None) -> FontPairing:
     return lookup.get(pairing_id or "") or lookup.get(DEFAULT_PAIRING_ID) or pairings()[0]
 
 
-def resolve(palette_id: str | None, pairing_id: str | None) -> DesignSystem:
+def style_by_id(style_id: str | None) -> str:
+    return style_id if style_id in STYLES else DEFAULT_STYLE_ID
+
+
+def resolve(
+    palette_id: str | None, pairing_id: str | None, style_id: str | None = None
+) -> DesignSystem:
     """Always returns something usable, whatever the model asked for."""
-    return DesignSystem(palette=palette_by_id(palette_id), fonts=pairing_by_id(pairing_id))
+    return DesignSystem(
+        palette=palette_by_id(palette_id),
+        fonts=pairing_by_id(pairing_id),
+        style=style_by_id(style_id),
+    )
+
+
+def style_choices_for_prompt() -> str:
+    """All ten looks; short enough to list in full."""
+    return "\n".join(f"- {style_id}: {best_for}" for style_id, best_for in STYLES.items())
 
 
 def choices_for_prompt(limit: int = 60) -> str:
@@ -291,6 +325,7 @@ def design_css(system: DesignSystem) -> str:
  *
  * Palette:  {palette.product_type} ({palette.id})
  * Fonts:    {fonts.name} — {fonts.heading} over {fonts.body}
+ * Look:     {system.style} (kit/looks.css, applied via the spec)
  *
  * Source: ui-ux-pro-max (MIT) — see the platform's design/data/PROVENANCE.md.
  * Chart series colours are NOT set here; theme.css owns those because they are

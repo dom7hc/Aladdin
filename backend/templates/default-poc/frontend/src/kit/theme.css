@@ -206,13 +206,13 @@ h3 {
 .shell-main {
   padding: 24px 28px 48px;
   display: grid;
-  gap: 18px;
+  gap: var(--gap, 18px);
   align-content: start;
 }
 
 .row {
   display: grid;
-  gap: 18px;
+  gap: var(--gap, 18px);
 }
 .row-4 {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -238,12 +238,14 @@ h3 {
 
 /* --- Card -------------------------------------------------------------- */
 
+/* Shape tokens (--gap, --card-*, --tile-value-size) come from looks.css; the
+ * fallbacks are the kit's own look, used when a project names none. */
 .card {
   background: var(--surface-0);
-  border: 1px solid var(--line);
+  border: var(--card-border, 1px) solid var(--line);
   border-radius: var(--radius);
-  padding: 18px 20px;
-  box-shadow: var(--shadow);
+  padding: var(--card-pad, 18px 20px);
+  box-shadow: var(--card-shadow, var(--shadow));
   min-width: 0;
 }
 
@@ -274,7 +276,7 @@ h3 {
 }
 
 .tile-value {
-  font-size: 1.95rem;
+  font-size: var(--tile-value-size, 1.95rem);
   font-weight: 650;
   line-height: 1.1;
   margin-top: 6px;

@@ -4,6 +4,8 @@
 // names. Everything visual lives in src/kit/, which the platform owns.
 import { Dashboard } from "./kit/render";
 import "./kit/theme.css";
+// Shape, depth and density per look; colour-free, so any palette fits any look.
+import "./kit/looks.css";
 // After theme.css so its per-project tokens win. The template ships a default
 // copy; the platform overwrites it at generation time.
 import "./kit/design.css";
