@@ -132,7 +132,12 @@ def test_design_css_dark_accent_differs_from_light_when_it_must():
     assert d.accent_for_dark(system.palette.primary) != system.palette.primary
 
 
-def test_prompt_choices_are_capped():
-    """The full 192 would crowd the architect's instruction out of the prompt."""
-    assert len(d.choices_for_prompt().splitlines()) <= 60
-    assert len(d.pairing_choices_for_prompt().splitlines()) <= 24
+def test_prompt_offers_every_usable_choice():
+    """The model can only pick ids it is shown; a slice made the rest unreachable.
+
+    Only legible palettes are offered, so the 44 excluded ones stay out.
+    """
+    offered = d.choices_for_prompt().splitlines()
+    assert len(offered) == len(d.palettes())
+    assert any("logistics-delivery" in line for line in offered)
+    assert len(d.pairing_choices_for_prompt().splitlines()) == len(d.pairings())

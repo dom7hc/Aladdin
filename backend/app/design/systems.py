@@ -298,16 +298,17 @@ def style_choices_for_prompt() -> str:
     return "\n".join(f"- {style_id}: {best_for}" for style_id, best_for in STYLES.items())
 
 
-def choices_for_prompt(limit: int = 60) -> str:
-    """Palette ids and their industries, for the architect's system prompt.
+def choices_for_prompt() -> str:
+    """Every usable palette id and its industry, for the architect's prompt.
 
-    Capped because the full 192 would crowd out the rest of the instruction.
+    All of them, not a slice: a cap of 60 left 88 industries unpickable, since
+    the model can only choose ids it is shown. The full list is about 2k tokens.
     """
-    return "\n".join(f"- {p.id}: {p.product_type}" for p in palettes()[:limit])
+    return "\n".join(f"- {p.id}: {p.product_type}" for p in palettes())
 
 
-def pairing_choices_for_prompt(limit: int = 24) -> str:
-    return "\n".join(f"- {p.id}: {p.name} — {p.best_for[:70]}" for p in pairings()[:limit])
+def pairing_choices_for_prompt() -> str:
+    return "\n".join(f"- {p.id}: {p.name} — {p.best_for[:70]}" for p in pairings())
 
 
 def design_css(system: DesignSystem) -> str:
