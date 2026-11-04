@@ -71,8 +71,8 @@ def parse(filename: str, data: bytes) -> Dataset:
     elif lower.endswith(".csv"):
         table, cut_at_read = _read_csv(data), False
     else:
-        raise DatasetError("Upload a .csv or .xlsx file.", status=415)
-    return _build(filename, table, cut_at_read)
+        raise DatasetError("Upload a CSV, Excel (.xlsx) or PDF file.", status=415)
+    return build(filename, table, cut_at_read)
 
 
 def _read_csv(data: bytes) -> list[list[Any]]:
@@ -122,7 +122,8 @@ def _read_xlsx(data: bytes) -> tuple[list[list[Any]], bool]:
         workbook.close()
 
 
-def _build(filename: str, table: list[list[Any]], cut_at_read: bool = False) -> Dataset:
+def build(filename: str, table: list[list[Any]], cut_at_read: bool = False) -> Dataset:
+    """Typed columns and rows from raw cells (header first), with the limits applied."""
     rows = [row for row in table if any(_present(cell) for cell in row)]
     if not rows:
         raise DatasetError("No data found in the file.")

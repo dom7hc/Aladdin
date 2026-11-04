@@ -15,6 +15,7 @@ Azure Foundry when CLAUDE_FOUNDRY_RESOURCE is set, falling back to the
 DeepSeek client if Claude fails. Every other stage stays on DeepSeek.
 """
 
+import base64
 import json
 import logging
 from typing import Any, Protocol
@@ -218,22 +219,59 @@ class ClaudeClient:
             )
         except Exception as exc:
             raise LLMError(f"Claude request failed: {exc}") from exc
-        stop_reason = getattr(response, "stop_reason", None)
-        if stop_reason == "refusal":
-            details = getattr(response, "stop_details", None)
-            category = getattr(details, "category", None)
-            raise LLMError(f"Claude declined the request (category: {category})")
-        if stop_reason == "max_tokens":
-            raise LLMError(
-                f"Claude output was truncated at max_tokens={self.max_tokens}; "
-                "increase CLAUDE_MAX_TOKENS or reduce the requested output"
-            )
-        text = "".join(
-            block.text for block in response.content if getattr(block, "type", None) == "text"
+        return _claude_text(response, self.max_tokens)
+
+    async def read_pdf(self, system: str, instruction: str, pdf: bytes, max_tokens: int) -> str:
+        """Ask about a PDF, sent as a base64 document block before the text.
+
+        Streamed, because a long table can take minutes to transcribe and a
+        non-streaming request that long hits HTTP timeouts. Low effort: this
+        is transcription, not reasoning.
+        """
+        content = [
+            {
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": base64.b64encode(pdf).decode("ascii"),
+                },
+            },
+            {"type": "text", "text": instruction},
+        ]
+        try:
+            async with self._client.messages.stream(
+                model=self.model,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": content}],
+                thinking={"type": "adaptive"},
+                output_config={"effort": "low"},
+            ) as stream:
+                response = await stream.get_final_message()
+        except Exception as exc:
+            raise LLMError(f"Claude request failed: {exc}") from exc
+        return _claude_text(response, max_tokens)
+
+
+def _claude_text(response: Any, max_tokens: int) -> str:
+    """The reply's text, or LLMError for a refusal, truncation or empty reply."""
+    stop_reason = getattr(response, "stop_reason", None)
+    if stop_reason == "refusal":
+        details = getattr(response, "stop_details", None)
+        category = getattr(details, "category", None)
+        raise LLMError(f"Claude declined the request (category: {category})")
+    if stop_reason == "max_tokens":
+        raise LLMError(
+            f"Claude output was truncated at max_tokens={max_tokens}; "
+            "increase CLAUDE_MAX_TOKENS or reduce the requested output"
         )
-        if not text.strip():
-            raise LLMError("Claude returned an empty message")
-        return text
+    text = "".join(
+        block.text for block in response.content if getattr(block, "type", None) == "text"
+    )
+    if not text.strip():
+        raise LLMError("Claude returned an empty message")
+    return text
 
 
 class FallbackClient:

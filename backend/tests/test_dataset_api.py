@@ -89,3 +89,27 @@ async def test_generation_designs_on_the_upload_and_ships_its_rows(db, tmp_path,
     project = await ProjectRepository(db).get(project_id)
     assert "dataset" not in project["requirements"]["content"]
     assert project["status"] == "READY"
+
+
+def test_pdf_upload_needs_claude(client, project_id, monkeypatch):
+    from app import config
+
+    monkeypatch.setattr(config, "CLAUDE_FOUNDRY_RESOURCE", "")
+    response = _upload(client, project_id, "report.pdf", b"%PDF-1.7\n")
+    assert response.status_code == 415
+    assert "CSV or Excel" in response.json()["detail"]
+
+
+def test_pdf_upload_is_read_by_claude(client, project_id, monkeypatch):
+    from app import config
+    from app.api import projects
+
+    class FakeClaude:
+        async def read_pdf(self, system, instruction, data, max_tokens):
+            return '{"columns": ["Site", "kWh"], "rows": [["A", 120], ["B", 98.5]]}'
+
+    monkeypatch.setattr(config, "CLAUDE_FOUNDRY_RESOURCE", "test")
+    monkeypatch.setattr(projects, "ClaudeClient", FakeClaude)
+    body = _upload(client, project_id, "energy.pdf", b"%PDF-1.7\n").json()
+    assert [c["key"] for c in body["columns"]] == ["site", "kwh"]
+    assert body["notes"][0].startswith("Read from the PDF by Claude")
