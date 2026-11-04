@@ -78,3 +78,23 @@ n4s-aladdin.southeastasia.cloudapp.azure.com:9006 {
 	import perf
 	reverse_proxy 127.0.0.1:8206
 }
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9007 {
+	import perf
+	reverse_proxy 127.0.0.1:8207
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9008 {
+	import perf
+	reverse_proxy 127.0.0.1:8208
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9009 {
+	import perf
+	reverse_proxy 127.0.0.1:8209
+}
+
+n4s-aladdin.southeastasia.cloudapp.azure.com:9010 {
+	import perf
+	reverse_proxy 127.0.0.1:8210
+}

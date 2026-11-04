@@ -219,27 +219,67 @@ def test_wait_healthy_false_when_probe_never_succeeds(monkeypatch):
     assert builder.wait_healthy(PROJECT_ID) is False
 
 
-async def test_start_rejects_when_all_slots_busy(db, monkeypatch):
-    """A build that has nowhere to land must be refused before it starts.
+async def test_full_slots_evict_the_preview_that_went_live_first(db, monkeypatch):
+    """The eleventh preview stops the oldest one rather than being refused.
 
-    Otherwise the user waits minutes for a compose build that cannot be
-    published, and the machine does the work anyway.
+    The evicted stack goes down with its volumes (its database too), and its
+    owner is told why, so deploying again is an obvious next step.
     """
     repo = ProjectRepository(db)
     monkeypatch.setattr(builder, "docker_available", lambda: True)
     monkeypatch.setattr(builder.config, "PREVIEW_SLOTS", 2)
+    stopped: list[str] = []
+    monkeypatch.setattr(builder, "stack_down", lambda pid, source_dir: stopped.append(pid))
 
-    for slot in (1, 2):
+    ids = {}
+    for slot, went_live in ((1, "2026-11-04T09:00:00+00:00"), (2, "2026-11-04T08:00:00+00:00")):
         busy = await repo.create("busy", "busy", empty_requirements("p"), 100)
         await repo.update_fields(
-            busy, {"status": "READY", "preview": {"status": "running", "slot": slot}}
+            busy,
+            {
+                "status": "READY",
+                "preview": {"status": "running", "slot": slot, "updatedAt": went_live},
+            },
         )
+        ids[slot] = busy
 
     project_id = await repo.create("T", "T", empty_requirements("p"), 100)
     await repo.update_fields(project_id, {"status": "READY"})
     service = PreviewService(db)
+    state = await service.start(project_id)
+
+    assert state["status"] == "building"
+    oldest = await service.get_state(ids[2])
+    assert oldest["status"] == "none" and "make room" in oldest["message"]
+    assert (await service.get_state(ids[1]))["status"] == "running"
+    assert stopped == [ids[2]], "only the oldest stack is torn down"
+
+
+async def test_start_refused_only_when_nothing_can_be_evicted(db, monkeypatch):
+    """Every slot held by previews that are not running: nothing to stop."""
+    repo = ProjectRepository(db)
+    monkeypatch.setattr(builder, "docker_available", lambda: True)
+    monkeypatch.setattr(builder.config, "PREVIEW_SLOTS", 1)
+    busy = await repo.create("busy", "busy", empty_requirements("p"), 100)
+    await repo.update_fields(
+        busy, {"status": "READY", "preview": {"status": "building", "slot": 1}}
+    )
+    project_id = await repo.create("T", "T", empty_requirements("p"), 100)
+    await repo.update_fields(project_id, {"status": "READY"})
     with pytest.raises(PreviewNotReadyError, match="preview slots are in use"):
-        await service.start(project_id)
+        await PreviewService(db).start(project_id)
+
+
+def test_every_preview_slot_has_a_caddy_site_block():
+    """Slot N is served on 9000+N only if the Caddyfile proxies it to 8200+N."""
+    caddyfile = (Path(__file__).parents[2] / "deploy" / "caddy" / "Caddyfile").read_text(
+        encoding="utf-8"
+    )
+    for slot in range(1, builder.config.PREVIEW_SLOTS + 1):
+        public = builder.config.PREVIEW_PUBLIC_PORT_BASE + slot
+        local = builder.config.PREVIEW_PORT_BASE + slot
+        block = f":{public} {{\n\timport perf\n\treverse_proxy 127.0.0.1:{local}\n}}"
+        assert block in caddyfile, f"slot {slot} has no site block"
 
 
 async def test_reaper_stops_expired_previews_only(db, monkeypatch):

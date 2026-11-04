@@ -58,7 +58,7 @@ services:
       CLAUDE_EFFORT: ${CLAUDE_EFFORT:-medium}
       # Preview slots must agree with the site blocks in caddy/Caddyfile:
       # slot N is published on loopback 8200+N and served on 9000+N.
-      PREVIEW_SLOTS: ${PREVIEW_SLOTS:-6}
+      PREVIEW_SLOTS: ${PREVIEW_SLOTS:-10}
       PREVIEW_PORT_BASE: ${PREVIEW_PORT_BASE:-8200}
       PREVIEW_PUBLIC_PORT_BASE: ${PREVIEW_PUBLIC_PORT_BASE:-9000}
       PREVIEW_TTL_SECONDS: ${PREVIEW_TTL_SECONDS:-3600}
