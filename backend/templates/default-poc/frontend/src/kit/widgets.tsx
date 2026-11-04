@@ -338,8 +338,13 @@ export function FilterRail({
   );
 }
 
-const THEMES = ["indigo", "teal", "amber", "rose", "violet", "graphite"] as const;
+// "design" is this project's own palette from design.css, so it leads and is
+// the default; the fixed accents remain as alternatives.
+const THEMES = ["design", "indigo", "teal", "amber", "rose", "violet", "graphite"] as const;
 const SWATCH: Record<string, string> = {
+  // Its own token, which no theme repoints, so the swatch keeps the palette's
+  // colour while another theme is active.
+  design: "var(--design-accent)",
   indigo: "#4338ca",
   teal: "#0f766e",
   amber: "#b45309",
@@ -359,7 +364,7 @@ function stored(key: string, fallback: string): string {
 
 /** Theme and light/dark, both persisted so a demo survives a reload. */
 export function ThemeSwitcher({ initialTheme }: { initialTheme?: string }) {
-  const [theme, setTheme] = useState(() => stored("poc-theme", initialTheme ?? "indigo"));
+  const [theme, setTheme] = useState(() => stored("poc-theme", initialTheme ?? "design"));
   const [mode, setMode] = useState(() => stored("poc-mode", "auto"));
 
   // useEffect, not useMemo: this mutates the document, and a render-phase

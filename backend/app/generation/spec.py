@@ -81,6 +81,19 @@ def validate_spec(spec: Any) -> list[str]:
     if layout not in LAYOUTS:
         errors.append(f"'layout' must be one of {sorted(LAYOUTS)}, got {layout!r}")
 
+    design = spec.get("designSystem")
+    if design is not None:
+        if not isinstance(design, dict):
+            errors.append("'designSystem' must be an object when present")
+        else:
+            # Unknown ids are not fatal: systems.resolve falls back to the
+            # default, which is better than failing a whole generation over a
+            # cosmetic choice. Only a wrong shape is an error.
+            for key in ("palette", "fonts"):
+                value = design.get(key)
+                if value is not None and not isinstance(value, str):
+                    errors.append(f"designSystem.{key} must be a string id")
+
     theme = spec.get("theme")
     if theme is not None and theme not in THEMES:
         errors.append(f"'theme' must be one of {sorted(THEMES)}, got {theme!r}")

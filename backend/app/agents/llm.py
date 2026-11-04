@@ -1,4 +1,4 @@
-"""LLM-backed agents (DeepSeek, OpenAI-compatible API).
+"""LLM-backed agents (DeepSeek, OpenAI-compatible API; Claude for design).
 
 Drop-in replacements for the deterministic stubs behind the same interfaces in
 ``app.agents.base`` — orchestration, endpoints and contracts are unchanged.
@@ -9,11 +9,15 @@ generation service turns that into the usual FAILED project state.
 The build/test execution stays deterministic (AI Developer Plan §8): the LLM
 tester runs the same runner battery as the stub and only uses the model to
 turn raw command output into a structured diagnosis.
+
+The architect — the stage that designs the dashboard — runs on Claude on
+Azure Foundry when CLAUDE_FOUNDRY_RESOURCE is set, falling back to the
+DeepSeek client if Claude fails. Every other stage stays on DeepSeek.
 """
 
 import json
 import logging
-from typing import Any
+from typing import Any, Protocol
 
 from app import config
 from app.agents.base import (
@@ -29,6 +33,7 @@ from app.agents.base import (
 )
 from app.agents.stubs import AUTOFILL_DEFAULTS, QUESTION_PER_FIELD, StubRequirementAgent
 from app.catalogue import prompt_guidance
+from app.design import systems as design
 from app.generation import runner
 from app.generation.spec import (
     LAYOUTS,
@@ -50,6 +55,10 @@ MAX_DIAGNOSIS_CHARS = 2_000
 # The only frontend file the generator writes; everything visual is
 # platform-owned in the template's frontend/src/kit/.
 DASHBOARD_SPEC_PATH = "frontend/src/dashboard.config.json"
+
+# Per-project design tokens, written by the platform from the vendored
+# ui-ux-pro-max data. The template ships a default so the import always resolves.
+DESIGN_CSS_PATH = "frontend/src/kit/design.css"
 
 # Files every generated PoC must have. The frontend entry, package.json and the
 # design system all come from the template now, and the platform writes the
@@ -146,6 +155,102 @@ class DeepSeekClient:
         return content
 
 
+class CompletionClient(Protocol):
+    """What the agents need from a model: one system + user turn in, text out."""
+
+    async def complete(self, system: str, user: str) -> str: ...
+
+
+class ClaudeClient:
+    """Claude on Azure Foundry, through the Anthropic Messages API.
+
+    Foundry serves Claude only on the Anthropic API (its OpenAI-compatible
+    endpoint answers api_not_supported), hence a second SDK. Same
+    ``complete`` contract and error semantics as ``DeepSeekClient``.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        resource: str | None = None,
+        model: str | None = None,
+        timeout_seconds: float | None = None,
+        max_tokens: int | None = None,
+        effort: str | None = None,
+        client: Any = None,
+    ) -> None:
+        self.model = model if model is not None else config.CLAUDE_MODEL
+        self.max_tokens = max_tokens if max_tokens is not None else config.CLAUDE_MAX_TOKENS
+        self.effort = effort if effort is not None else config.CLAUDE_EFFORT
+        self._client = client
+        if self._client is None:
+            try:
+                from anthropic import AsyncAnthropicFoundry
+            except ImportError as exc:  # pragma: no cover - dependency is in requirements.txt
+                raise LLMError(
+                    "The anthropic package is required for Claude agents; install it with pip."
+                ) from exc
+            self._client = AsyncAnthropicFoundry(
+                api_key=api_key if api_key is not None else config.CLAUDE_API_KEY,
+                resource=resource if resource is not None else config.CLAUDE_FOUNDRY_RESOURCE,
+                timeout=(
+                    timeout_seconds
+                    if timeout_seconds is not None
+                    else config.CLAUDE_TIMEOUT_SECONDS
+                ),
+            )
+
+    async def complete(self, system: str, user: str) -> str:
+        """One Messages API turn; returns the concatenated text blocks."""
+        try:
+            response = await self._client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": user}],
+                # Opus 5.5 always thinks; effort is the only depth control.
+                thinking={"type": "adaptive"},
+                output_config={"effort": self.effort},
+            )
+        except Exception as exc:
+            raise LLMError(f"Claude request failed: {exc}") from exc
+        stop_reason = getattr(response, "stop_reason", None)
+        if stop_reason == "refusal":
+            details = getattr(response, "stop_details", None)
+            category = getattr(details, "category", None)
+            raise LLMError(f"Claude declined the request (category: {category})")
+        if stop_reason == "max_tokens":
+            raise LLMError(
+                f"Claude output was truncated at max_tokens={self.max_tokens}; "
+                "increase CLAUDE_MAX_TOKENS or reduce the requested output"
+            )
+        text = "".join(
+            block.text for block in response.content if getattr(block, "type", None) == "text"
+        )
+        if not text.strip():
+            raise LLMError("Claude returned an empty message")
+        return text
+
+
+class FallbackClient:
+    """Asks ``primary`` and, when it fails, asks ``secondary`` instead.
+
+    Keeps a Claude outage, quota limit or refusal from failing the whole
+    generation: the stage falls back to the model every other stage uses.
+    """
+
+    def __init__(self, primary: CompletionClient, secondary: CompletionClient) -> None:
+        self.primary = primary
+        self.secondary = secondary
+
+    async def complete(self, system: str, user: str) -> str:
+        try:
+            return await self.primary.complete(system, user)
+        except LLMError as exc:
+            logger.warning("Primary model failed, falling back: %s", exc)
+            return await self.secondary.complete(system, user)
+
+
 def _extract_json(text: str) -> dict[str, Any]:
     """Parse the first JSON object in the model output (tolerates code fences)."""
     cleaned = text.strip()
@@ -192,7 +297,7 @@ def _extract_json(text: str) -> dict[str, Any]:
 
 
 async def _ask_for_json(
-    client: DeepSeekClient,
+    client: CompletionClient,
     system: str,
     user: str,
     validate: Any = None,
@@ -428,12 +533,18 @@ _ARCHITECT_SYSTEM = (
     f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
     "the form by the data's job: a single headline number is a stat, change "
     "over time is a line, comparison across categories is a bar. Never two "
-    "measures of different scale in one chart — use two charts."
+    "measures of different scale in one chart — use two charts.\n"
+    'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>}. '
+    "Pick the palette whose industry is closest to the user's, and a font "
+    "pairing whose audience matches. Omit it if nothing fits — a default is "
+    "used. Chart colours are not yours to choose; they are fixed.\n"
+    f"Palettes:\n{design.choices_for_prompt()}\n"
+    f"Font pairings:\n{design.pairing_choices_for_prompt()}"
 )
 
 
 class LlmArchitectAgent(ArchitectAgent):
-    def __init__(self, client: DeepSeekClient | None = None) -> None:
+    def __init__(self, client: CompletionClient | None = None) -> None:
         self.client = client or DeepSeekClient()
 
     async def run(self, requirements: dict[str, Any]) -> dict[str, Any]:
@@ -502,6 +613,10 @@ _DEVELOPER_SYSTEM = (
     "(python sqlite3, stdlib only) that the app creates and seeds "
     "automatically on first start; GET keeps returning the full "
     "list. Non-editable endpoints stay read-only sample data.\n"
+    'Put the database file at os.environ.get("POC_DB", "/data/poc.db") and '
+    "create its parent directory if missing — /data is a mounted volume, so "
+    "records there survive a restart, and the default keeps the project "
+    "runnable outside the preview stack.\n"
     "Never write any frontend file — no CSS, no components, no "
     "index.html. The whole frontend is platform-owned and any "
     "frontend path is rejected.\n"
@@ -587,6 +702,16 @@ class LlmDeveloperAgent(DeveloperAgent):
             json.dumps(architecture, ensure_ascii=False, indent=2) + "\n",
         )
         written.append(DASHBOARD_SPEC_PATH)
+
+        # The look is resolved here, not by the model: an unknown id falls back
+        # to the default rather than failing a generation over cosmetics.
+        chosen = architecture.get("designSystem") or {}
+        system = design.resolve(chosen.get("palette"), chosen.get("fonts"))
+        ws.write_file(project_id, DESIGN_CSS_PATH, design.design_css(system))
+        written.append(DESIGN_CSS_PATH)
+        logger.info(
+            "Project %s styled with %s / %s", project_id, system.palette.id, system.fonts.id
+        )
 
         missing = MINIMAL_FILES - set(ws.list_files(project_id))
         if missing:
@@ -732,8 +857,12 @@ def build_llm_agents() -> tuple[
     if not config.LLM_API_KEY:
         raise RuntimeError("LLM_ENABLED=true requires LLM_API_KEY in the environment")
     client = DeepSeekClient()
+    # Claude designs the dashboard when configured; DeepSeek stays the backstop.
+    architect_client: CompletionClient = client
+    if config.CLAUDE_FOUNDRY_RESOURCE:
+        architect_client = FallbackClient(ClaudeClient(), client)
     return (
-        LlmArchitectAgent(client),
+        LlmArchitectAgent(architect_client),
         LlmDeveloperAgent(client),
         LlmReviewerAgent(client),
         LlmTesterAgent(client),

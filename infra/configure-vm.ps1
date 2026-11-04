@@ -12,7 +12,10 @@ param(
     [string]$LlmModel      = 'deepseek',
     # Needs the backend's LLM_THINKING=omit support (fix/foundry-llm); older
     # code always sends `thinking`, which Foundry rejects.
-    [bool]$LlmEnabled      = $true
+    [bool]$LlmEnabled      = $true,
+    # Foundry resource whose claude-opus-5-5 deployment (made in the portal,
+    # not Terraform) designs the dashboard. '' keeps the design on DeepSeek.
+    [string]$ClaudeResource = 'n4s-aladdin-foundry'
 )
 $ErrorActionPreference = 'Stop'
 $TerraformDir = Join-Path $PSScriptRoot 'terraform'
@@ -51,6 +54,8 @@ $common = @(
     "LLM_MODEL=$LlmModel"
     # Foundry rejects the DeepSeek-only thinking field.
     "LLM_THINKING=omit"
+    # Same key as LLM_API_KEY: one Foundry resource serves both models.
+    "CLAUDE_FOUNDRY_RESOURCE=$ClaudeResource"
 ) -join "`n"
 $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($common + "`n"))
 

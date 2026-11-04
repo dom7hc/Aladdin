@@ -4,6 +4,9 @@ motor>=3.6
 # OpenAI-compatible SDK; talks to DeepSeek (https://api.deepseek.com) when
 # LLM_ENABLED=true. Import is lazy, so stub mode never needs it at runtime.
 openai>=1.40
+# Claude on Azure Foundry (AsyncAnthropicFoundry) for the architect agent;
+# Foundry serves Claude only on the Anthropic API. Also imported lazily.
+anthropic>=2.4
 # Builds the .pptx deck that presents a generated dashboard. Pure Python,
 # no system packages, and it emits native PowerPoint charts so the deck
 # stays editable without needing a headless browser for screenshots.

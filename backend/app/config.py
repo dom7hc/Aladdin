@@ -51,6 +51,18 @@ LLM_REASONING_EFFORT = os.getenv("LLM_REASONING_EFFORT", "low")
 # Azure Foundry requires (it rejects the field as unrecognized).
 LLM_THINKING = os.getenv("LLM_THINKING", "disabled")
 
+# Claude on Azure Foundry for the design stage (the architect agent). Unset
+# CLAUDE_FOUNDRY_RESOURCE keeps every stage on the LLM_* model above. The key
+# defaults to LLM_API_KEY because one Foundry resource serves both models.
+CLAUDE_FOUNDRY_RESOURCE = os.getenv("CLAUDE_FOUNDRY_RESOURCE", "")
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "") or LLM_API_KEY
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-opus-5-5")
+# Opus 5.5 cannot turn thinking off; effort sets its depth (its default is
+# medium). A dashboard spec is a short JSON answer, so medium is plenty.
+CLAUDE_EFFORT = os.getenv("CLAUDE_EFFORT", "medium")
+CLAUDE_MAX_TOKENS = int(os.getenv("CLAUDE_MAX_TOKENS", "16000"))
+CLAUDE_TIMEOUT_SECONDS = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "300"))
+
 # Generated-PoC preview deployment. The backend builds and runs the generated
 # PoC via the host Docker daemon through the mounted socket.
 #

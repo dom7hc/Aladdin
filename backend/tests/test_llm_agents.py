@@ -11,7 +11,9 @@ import pytest
 from app.agents import llm
 from app.agents.base import ReviewResult
 from app.agents.llm import (
+    ClaudeClient,
     DeepSeekClient,
+    FallbackClient,
     LlmArchitectAgent,
     LlmDeveloperAgent,
     LLMError,
@@ -381,9 +383,15 @@ async def test_developer_agent_truncates_overflow_keeping_required(llm_workspace
     files.append({"path": "backend/requirements.txt", "content": "fastapi\n"})
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     written = await agent.run(llm_workspace, {}, VALID_SPEC)
-    # The platform's spec is written on top of the model's budgeted files.
-    assert len(written) == llm.MAX_GENERATED_FILES + 1
-    for required in ("backend/main.py", "backend/requirements.txt", llm.DASHBOARD_SPEC_PATH):
+    # The platform writes the spec and the design tokens on top of the model's
+    # budgeted files.
+    assert len(written) == llm.MAX_GENERATED_FILES + 2
+    for required in (
+        "backend/main.py",
+        "backend/requirements.txt",
+        llm.DASHBOARD_SPEC_PATH,
+        llm.DESIGN_CSS_PATH,
+    ):
         assert required in written
 
 
@@ -469,11 +477,92 @@ def test_build_llm_agents_requires_api_key(monkeypatch):
 def test_build_llm_agents_returns_llm_types(monkeypatch):
     monkeypatch.setattr(llm.config, "LLM_ENABLED", True)
     monkeypatch.setattr(llm.config, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(llm.config, "CLAUDE_FOUNDRY_RESOURCE", "")
     architect, developer, reviewer, tester = build_llm_agents()
     assert isinstance(architect, LlmArchitectAgent)
+    assert isinstance(architect.client, DeepSeekClient)
     assert isinstance(developer, LlmDeveloperAgent)
     assert isinstance(reviewer, LlmReviewerAgent)
     assert isinstance(tester, LlmTesterAgent)
+
+
+def test_build_llm_agents_gives_only_the_architect_claude(monkeypatch):
+    monkeypatch.setattr(llm.config, "LLM_ENABLED", True)
+    monkeypatch.setattr(llm.config, "LLM_API_KEY", "test-key")
+    monkeypatch.setattr(llm.config, "CLAUDE_API_KEY", "test-key")
+    monkeypatch.setattr(llm.config, "CLAUDE_FOUNDRY_RESOURCE", "test-resource")
+    architect, developer, reviewer, tester = build_llm_agents()
+    assert isinstance(architect.client, FallbackClient)
+    assert isinstance(architect.client.primary, ClaudeClient)
+    assert isinstance(architect.client.secondary, DeepSeekClient)
+    for agent in (developer, reviewer, tester):
+        assert isinstance(agent.client, DeepSeekClient)
+
+
+class FakeAnthropicMessages:
+    def __init__(self, *responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        item = self.responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+def _claude_response(text, stop_reason="end_turn", category=None):
+    return SimpleNamespace(
+        stop_reason=stop_reason,
+        stop_details=SimpleNamespace(category=category) if category else None,
+        content=[
+            SimpleNamespace(type="thinking", thinking=""),
+            SimpleNamespace(type="text", text=text),
+        ],
+    )
+
+
+def _claude(*responses) -> ClaudeClient:
+    return ClaudeClient(
+        client=SimpleNamespace(messages=FakeAnthropicMessages(*responses)), model="claude-test"
+    )
+
+
+async def test_claude_client_returns_text_and_sends_adaptive_thinking():
+    client = _claude(_claude_response('{"ok": true}'))
+    assert await client.complete("sys", "user") == '{"ok": true}'
+    call = client._client.messages.calls[0]
+    assert call["model"] == "claude-test"
+    assert call["system"] == "sys"
+    assert call["messages"] == [{"role": "user", "content": "user"}]
+    assert call["thinking"] == {"type": "adaptive"}
+    assert call["output_config"] == {"effort": client.effort}
+
+
+@pytest.mark.parametrize(
+    ("response", "match"),
+    [
+        (_claude_response("", stop_reason="refusal", category="cyber"), "declined"),
+        (_claude_response("{", stop_reason="max_tokens"), "truncated"),
+        (_claude_response("   "), "empty"),
+        (RuntimeError("boom"), "Claude request failed"),
+    ],
+)
+async def test_claude_client_raises_llm_error(response, match):
+    with pytest.raises(LLMError, match=match):
+        await _claude(response).complete("sys", "user")
+
+
+async def test_fallback_client_uses_secondary_when_primary_fails():
+    secondary = DeepSeekClient(client=FakeClient("from deepseek"))
+    fallback = FallbackClient(_claude(RuntimeError("quota")), secondary)
+    assert await fallback.complete("sys", "user") == "from deepseek"
+
+
+async def test_architect_designs_with_claude():
+    agent = LlmArchitectAgent(_claude(_claude_response(json.dumps(VALID_SPEC))))
+    assert await agent.run(empty_requirements("x")) == VALID_SPEC
 
 
 async def test_requirement_agent_never_claims_complete_while_blocked():
