@@ -1,4 +1,5 @@
 import type {
+  DatasetInfo,
   FinalizeResult,
   PreviewState,
   Scenario,
@@ -9,7 +10,7 @@ import type {
   RequirementResponse,
 } from '@/types'
 
-import { apiFetch } from './httpClient'
+import { apiFetch, apiUpload } from './httpClient'
 
 export function listProjects(): Promise<Project[]> {
   return apiFetch<Project[]>('/projects')
@@ -67,4 +68,16 @@ export function getRequirements(id: string): Promise<RequirementsSummary> {
 
 export function getScenarios(): Promise<Scenario[]> {
   return apiFetch<Scenario[]>('/projects/scenarios')
+}
+
+export function getDataset(id: string): Promise<DatasetInfo> {
+  return apiFetch<DatasetInfo>(`/projects/${id}/dataset`)
+}
+
+export function uploadDataset(id: string, file: File): Promise<DatasetInfo> {
+  return apiUpload<DatasetInfo>(`/projects/${id}/dataset`, file)
+}
+
+export function deleteDataset(id: string): Promise<void> {
+  return apiFetch<void>(`/projects/${id}/dataset`, { method: 'DELETE' })
 }

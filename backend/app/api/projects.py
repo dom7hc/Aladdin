@@ -2,7 +2,15 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app import config
@@ -22,12 +30,15 @@ from app.agents.stubs import (
     StubTesterAgent,
 )
 from app.catalogue import as_public_list
+from app.ingest import spreadsheet
+from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.project_repository import ProjectNotFoundError
 from app.schemas.project import (
     ArtifactResponse,
     ChatMessageResponse,
     ChatRequest,
     ChatResponse,
+    DatasetResponse,
     FinalizeResponse,
     GenerateResponse,
     PreviewResponse,
@@ -218,6 +229,71 @@ async def deck(
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition": f'attachment; filename="{project_id}.pptx"'},
     )
+
+
+def get_dataset_repository(
+    db: Annotated[AsyncIOMotorDatabase, Depends(get_db)],
+) -> DatasetRepository:
+    return DatasetRepository(db)
+
+
+def _dataset_response(dataset: spreadsheet.Dataset) -> DatasetResponse:
+    return DatasetResponse(
+        filename=dataset.filename,
+        row_count=dataset.row_count,
+        used_rows=len(dataset.rows),
+        truncated=dataset.truncated,
+        notes=dataset.notes,
+        columns=[{"key": c.key, "label": c.label, "type": c.type} for c in dataset.columns],
+        preview=dataset.rows[:5],
+    )
+
+
+@router.post("/{project_id}/dataset", response_model=DatasetResponse, status_code=201)
+async def upload_dataset(
+    project_id: str,
+    file: UploadFile,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+    datasets: Annotated[DatasetRepository, Depends(get_dataset_repository)],
+) -> DatasetResponse:
+    """A CSV or Excel file the dashboard is built on, replacing any earlier one."""
+    project = await _guard(project_id, service.get(project_id))
+    if project.status in ProjectService.GENERATING_STATUSES:
+        raise HTTPException(
+            status_code=409, detail="The dashboard is being generated; upload once it finishes."
+        )
+    # One byte over the cap is enough to refuse; never read an unbounded body.
+    data = await file.read(spreadsheet.MAX_BYTES + 1)
+    try:
+        dataset = spreadsheet.parse(file.filename or "upload", data)
+    except spreadsheet.DatasetError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from None
+    await datasets.save(project_id, dataset)
+    return _dataset_response(dataset)
+
+
+@router.get("/{project_id}/dataset", response_model=DatasetResponse)
+async def get_dataset(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+    datasets: Annotated[DatasetRepository, Depends(get_dataset_repository)],
+) -> DatasetResponse:
+    await _guard(project_id, service.get(project_id))
+    dataset = await datasets.get(project_id)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="No file uploaded for this project")
+    return _dataset_response(dataset)
+
+
+@router.delete("/{project_id}/dataset", status_code=204)
+async def delete_dataset(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+    datasets: Annotated[DatasetRepository, Depends(get_dataset_repository)],
+) -> Response:
+    await _guard(project_id, service.get(project_id))
+    await datasets.delete(project_id)
+    return Response(status_code=204)
 
 
 def get_preview_service(db: Annotated[AsyncIOMotorDatabase, Depends(get_db)]) -> PreviewService:

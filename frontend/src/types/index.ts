@@ -110,3 +110,22 @@ export interface Scenario {
   highlights: string[]
   prompt: string
 }
+
+export type DatasetColumnType = 'integer' | 'number' | 'date' | 'boolean' | 'text'
+
+export interface DatasetColumn {
+  key: string
+  label: string
+  type: DatasetColumnType
+}
+
+/** A user's uploaded CSV/Excel file, as the platform understood it. */
+export interface DatasetInfo {
+  filename: string
+  rowCount: number
+  usedRows: number
+  truncated: boolean
+  notes: string[]
+  columns: DatasetColumn[]
+  preview: Record<string, unknown>[]
+}

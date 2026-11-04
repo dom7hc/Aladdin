@@ -1,6 +1,7 @@
 import type {
   Artifact,
   ChatMessage,
+  DatasetInfo,
   Project,
   RequirementData,
 } from '@/types'
@@ -21,6 +22,7 @@ export interface MockState {
   artifacts: Record<string, Artifact[]>
   generation: Record<string, GenerationState>
   previewBuilds: Record<string, PreviewBuildState>
+  datasets: Record<string, DatasetInfo>
 }
 
 const STORAGE_KEY = 'aladdin.mock.state.v1'
@@ -32,6 +34,7 @@ const emptyState = (): MockState => ({
   artifacts: {},
   generation: {},
   previewBuilds: {},
+  datasets: {},
 })
 
 let state: MockState | null = null
