@@ -215,7 +215,10 @@ export function ResultPage() {
                         ? 'Building the generated PoC into Docker images… this usually takes one to three minutes.'
                         : preview.status === 'failed' || preview.status === 'unhealthy'
                           ? `Deployment failed: ${preview.message ?? 'unknown error'}`
-                          : 'The generated PoC is not deployed yet. Build it into containers to get a live URL.'}
+                          : // A stopped preview says why (e.g. evicted to make room for a
+                            // newer one); one never deployed has no message.
+                            (preview.message ??
+                            'The generated PoC is not deployed yet. Build it into containers to get a live URL.')}
                     </span>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">

@@ -72,7 +72,7 @@ CLAUDE_TIMEOUT_SECONDS = float(os.getenv("CLAUDE_TIMEOUT_SECONDS", "300"))
 # PREVIEW_PUBLIC_PORT_BASE + N. Both bases must stay in step with the site
 # blocks in deploy/caddy/Caddyfile.
 PREVIEW_PORT_BASE = int(os.getenv("PREVIEW_PORT_BASE", "8200"))
-PREVIEW_SLOTS = int(os.getenv("PREVIEW_SLOTS", "6"))
+PREVIEW_SLOTS = int(os.getenv("PREVIEW_SLOTS", "10"))
 PREVIEW_PUBLIC_PORT_BASE = int(os.getenv("PREVIEW_PUBLIC_PORT_BASE", "9000"))
 # Previews are health-checked from a throwaway container on the PoC's own
 # compose network, because the stack binds its port to loopback and that is not

@@ -21,6 +21,12 @@ from app.schemas.project import utcnow
 logger = logging.getLogger(__name__)
 
 
+EVICTED_MESSAGE = (
+    "Stopped to make room for a newer preview (only so many run at once). "
+    "Deploy it again to bring it back."
+)
+
+
 class PreviewNotReadyError(Exception):
     """The project cannot start a preview right now."""
 
@@ -68,13 +74,40 @@ class PreviewService:
                 "Docker is not available to this backend; preview deployment "
                 "needs a mounted Docker socket (supported on the local stack)"
             )
-        # Reject before spending minutes on a build that has nowhere to land.
-        if len(await self._occupied_slots()) >= config.PREVIEW_SLOTS:
+        # Make room before spending minutes on a build: when every slot is
+        # taken, the preview that went live first gives way.
+        if not await self._make_room(exclude=project_id):
             raise PreviewNotReadyError(
                 f"All {config.PREVIEW_SLOTS} preview slots are in use; "
                 "stop a running preview and try again"
             )
         return await self._save_state(project_id, status="building")
+
+    async def _make_room(self, exclude: str) -> bool:
+        """Ensure a free slot, evicting the oldest running preview if needed.
+
+        Ten previews run at once; the eleventh stops whichever went live first,
+        and its stack and volumes go with it (the preview's database included).
+        Its owner sees why, and can deploy again. False only when every slot
+        is held by something that cannot be evicted.
+        """
+        if len(await self._occupied_slots()) < config.PREVIEW_SLOTS:
+            return True
+        oldest = await self.repo.collection.find_one(
+            {
+                "preview.status": "running",
+                "preview.slot": {"$ne": None},
+                "_id": {"$ne": self.repo.parse_id(exclude)},
+            },
+            {"_id": 1},
+            sort=[("preview.updatedAt", 1)],
+        )
+        if oldest is None:
+            return False
+        evicted = str(oldest["_id"])
+        logger.info("Preview slots full; evicting the oldest preview, %s", evicted)
+        await self.stop(evicted, message=EVICTED_MESSAGE)
+        return True
 
     async def _occupied_slots(self) -> set[int]:
         """Slots held by previews that are currently running or building."""
@@ -87,6 +120,8 @@ class PreviewService:
     async def run_build(self, project_id: str) -> None:
         """Background task: build, start and health-check the preview stack."""
         try:
+            # Another build may have taken the freed slot while this one waited.
+            await self._make_room(exclude=project_id)
             occupied = await self._occupied_slots()
             slot = await builder.build_and_start(project_id, occupied)
         except (builder.PreviewError, OSError) as exc:
@@ -132,7 +167,7 @@ class PreviewService:
                 logger.exception("Could not reap preview for %s", project_id)
         return len(expired)
 
-    async def stop(self, project_id: str) -> dict[str, Any]:
+    async def stop(self, project_id: str, message: str = "Preview stopped") -> dict[str, Any]:
         await self._load(project_id)
         from app.workspace import workspace as ws
 
@@ -142,5 +177,5 @@ class PreviewService:
         except builder.PreviewError as exc:
             logger.warning("Preview teardown issue for %s: %s", project_id, exc)
         return await self._save_state(
-            project_id, status="none", port=None, url=None, message="Preview stopped"
+            project_id, status="none", port=None, url=None, message=message
         )
