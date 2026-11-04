@@ -62,6 +62,8 @@ export interface DashboardSpec {
   subtitle?: string;
   layout: Layout;
   theme?: string;
+  /** Resolved by the platform; style is one of the looks in looks.css. */
+  designSystem?: { palette?: string; fonts?: string; style?: string };
   widgets: Widget[];
   filters?: Filter[];
 }

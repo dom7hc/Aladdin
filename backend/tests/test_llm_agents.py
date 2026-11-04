@@ -328,9 +328,31 @@ async def test_developer_agent_writes_backend_and_the_platform_writes_the_spec(l
     written = await agent.run(llm_workspace, {}, VALID_SPEC)
 
     assert ws.read_file(llm_workspace, "backend/main.py").startswith("from fastapi")
-    # The spec is ours, not the model's: it must match the architecture exactly.
+    # The spec is ours, not the model's: it must match the architecture exactly,
+    # plus the design system as resolved (defaults here, since none was chosen).
     assert llm.DASHBOARD_SPEC_PATH in written
-    assert json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH)) == VALID_SPEC
+    spec = json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH))
+    design_system = spec.pop("designSystem")
+    assert spec == VALID_SPEC
+    assert design_system == {
+        "palette": "saas-general",
+        "fonts": "modern-professional",
+        "style": "soft-ui-evolution",
+    }
+
+
+async def test_developer_resolves_the_chosen_look_into_the_spec(llm_workspace: str):
+    """A known style is kept; an invented one falls back rather than failing."""
+    files = [{"path": "backend/main.py", "content": "app = None\n"}]
+    for chosen, expected in (
+        ("glassmorphism", "glassmorphism"),
+        ("neon-vapor", "soft-ui-evolution"),
+    ):
+        architecture = {**VALID_SPEC, "designSystem": {"style": chosen}}
+        agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+        await agent.run(llm_workspace, {}, architecture)
+        spec = json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH))
+        assert spec["designSystem"]["style"] == expected
 
 
 async def test_developer_agent_accepts_empty_package_markers(llm_workspace: str):

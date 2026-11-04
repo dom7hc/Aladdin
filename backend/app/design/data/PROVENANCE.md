@@ -29,3 +29,15 @@ two would quietly lose that property.
 Palettes are also contrast-checked on load (`app/design/systems.py`) and
 excluded if a pair a reader must read falls below WCAG AA, so an unreadable
 palette can never be handed to a project.
+
+## Looks (styles)
+
+The ten looks in the template's `kit/looks.css` are implemented from
+ui-ux-pro-max's `styles.csv` (same repository and licence): its style ids are
+used verbatim, and each look follows that row's radius, shadow, spacing and
+effect guidance. The CSV itself is not vendored: only the ten ids and a
+condensed "best for" line live in `app/design/systems.py` (`STYLES`).
+Chosen for dashboards: active upstream, light and dark supported, and
+accessibility risk low or manageable. HUD and dimensional-layering styles were
+left out for their high accessibility risk, and landing-page styles because
+they are deprecated upstream.

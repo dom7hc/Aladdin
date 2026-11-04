@@ -534,12 +534,15 @@ _ARCHITECT_SYSTEM = (
     "the form by the data's job: a single headline number is a stat, change "
     "over time is a line, comparison across categories is a bar. Never two "
     "measures of different scale in one chart — use two charts.\n"
-    'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>}. '
-    "Pick the palette whose industry is closest to the user's, and a font "
-    "pairing whose audience matches. Omit it if nothing fits — a default is "
-    "used. Chart colours are not yours to choose; they are fixed.\n"
+    'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>, '
+    '"style": <id>}. Pick the palette whose industry is closest to the '
+    "user's, a font pairing whose audience matches, and the style that suits "
+    "who reads the dashboard and how much data it shows. Omit any you cannot "
+    "match — a default is used. Chart colours are not yours to choose; they "
+    "are fixed.\n"
     f"Palettes:\n{design.choices_for_prompt()}\n"
-    f"Font pairings:\n{design.pairing_choices_for_prompt()}"
+    f"Font pairings:\n{design.pairing_choices_for_prompt()}\n"
+    f"Styles:\n{design.style_choices_for_prompt()}"
 )
 
 
@@ -693,24 +696,39 @@ class LlmDeveloperAgent(DeveloperAgent):
             ws.write_file(project_id, path, content)
             written.append(path)
 
-        # The spec comes from the validated architecture, not from the model.
-        # Writing it here means the rendered dashboard always matches what the
-        # architect designed, with no chance of a transcription slip.
-        ws.write_file(
-            project_id,
-            DASHBOARD_SPEC_PATH,
-            json.dumps(architecture, ensure_ascii=False, indent=2) + "\n",
-        )
-        written.append(DASHBOARD_SPEC_PATH)
-
         # The look is resolved here, not by the model: an unknown id falls back
         # to the default rather than failing a generation over cosmetics.
         chosen = architecture.get("designSystem") or {}
-        system = design.resolve(chosen.get("palette"), chosen.get("fonts"))
+        system = design.resolve(chosen.get("palette"), chosen.get("fonts"), chosen.get("style"))
+
+        # The spec comes from the validated architecture, not from the model.
+        # Writing it here means the rendered dashboard always matches what the
+        # architect designed, with no chance of a transcription slip. Its
+        # designSystem carries the resolved ids, so the kit only ever sees a
+        # look that looks.css defines.
+        spec = {
+            **architecture,
+            "designSystem": {
+                "palette": system.palette.id,
+                "fonts": system.fonts.id,
+                "style": system.style,
+            },
+        }
+        ws.write_file(
+            project_id,
+            DASHBOARD_SPEC_PATH,
+            json.dumps(spec, ensure_ascii=False, indent=2) + "\n",
+        )
+        written.append(DASHBOARD_SPEC_PATH)
+
         ws.write_file(project_id, DESIGN_CSS_PATH, design.design_css(system))
         written.append(DESIGN_CSS_PATH)
         logger.info(
-            "Project %s styled with %s / %s", project_id, system.palette.id, system.fonts.id
+            "Project %s styled with %s / %s / %s",
+            project_id,
+            system.palette.id,
+            system.fonts.id,
+            system.style,
         )
 
         missing = MINIMAL_FILES - set(ws.list_files(project_id))

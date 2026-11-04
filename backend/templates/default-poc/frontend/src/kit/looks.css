@@ -1,0 +1,161 @@
+/* Looks — shape, depth and density. Platform-owned.
+ *
+ * Ten dashboard-suitable styles from ui-ux-pro-max (MIT), keyed by its style
+ * ids and implemented from its styles.csv guidance (radius, shadow, spacing,
+ * effects). The architect picks one per project; render.tsx sets data-look.
+ *
+ * Colour-free on purpose: every value here is shape, depth or density, so any
+ * palette in design.css fits any look, and dark mode keeps working. Shadows use
+ * black at low alpha, which reads on light and dark surfaces alike. Motion is
+ * limited to hover and always behind prefers-reduced-motion.
+ *
+ * Tokens theme.css reads (with its own values as fallbacks):
+ *   --radius --radius-sm --gap --card-pad --card-border --card-shadow
+ *   --tile-value-size
+ */
+
+/* --- Soft UI Evolution: the kit's default, softer multi-layer depth ------- */
+:root[data-look="soft-ui-evolution"] {
+  --radius: 12px;
+  --radius-sm: 8px;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 5%), 0 2px 4px rgb(0 0 0 / 4%), 0 12px 28px -18px rgb(0 0 0 / 28%);
+}
+
+/* --- Minimalism & Swiss Style: no radius, no shadow, generous space ------ */
+:root[data-look="minimalism-and-swiss-style"] {
+  --radius: 0px;
+  --radius-sm: 0px;
+  --gap: 28px;
+  --card-pad: 22px 24px;
+  --card-shadow: none;
+}
+:root[data-look="minimalism-and-swiss-style"] .shell-header {
+  border-bottom: 2px solid var(--ink-1);
+}
+:root[data-look="minimalism-and-swiss-style"] .card-title {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* --- Flat Design: solid surfaces, crisp edges, no depth ------------------- */
+:root[data-look="flat-design"] {
+  --radius: 3px;
+  --radius-sm: 2px;
+  --card-shadow: none;
+}
+:root[data-look="flat-design"] .card-title {
+  font-weight: 700;
+}
+
+/* --- Fluent 2: Microsoft's enterprise depth ramp, small control radius --- */
+:root[data-look="fluent-2"] {
+  --radius: 8px;
+  --radius-sm: 4px;
+  --card-shadow: 0 0.3px 0.9px rgb(0 0 0 / 11%), 0 1.6px 3.6px rgb(0 0 0 / 13%);
+}
+
+/* --- Data-Dense Dashboard: compact cards, tight grid, smaller type ------- */
+:root[data-look="data-dense-dashboard"] {
+  --radius: 6px;
+  --radius-sm: 4px;
+  --gap: 10px;
+  --card-pad: 12px 14px;
+  --tile-value-size: 1.5rem;
+  --card-shadow: none;
+}
+:root[data-look="data-dense-dashboard"] body {
+  font-size: 13.5px;
+}
+:root[data-look="data-dense-dashboard"] .shell-main {
+  padding: 14px 16px 32px;
+}
+:root[data-look="data-dense-dashboard"] .card-head {
+  margin-bottom: 8px;
+}
+:root[data-look="data-dense-dashboard"] thead th,
+:root[data-look="data-dense-dashboard"] tbody td {
+  padding: 6px 10px;
+}
+
+/* --- Executive Dashboard: large KPIs, status edge, clear hierarchy ------- */
+:root[data-look="executive-dashboard"] {
+  --radius: 10px;
+  --card-pad: 22px 24px;
+  --tile-value-size: 2.7rem;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 6%), 0 10px 26px -16px rgb(0 0 0 / 30%);
+}
+:root[data-look="executive-dashboard"] .row-4 .card {
+  border-left: 4px solid var(--accent);
+}
+
+/* --- Bento Box Grid: large radius, borderless tiles, gentle lift --------- */
+:root[data-look="bento-box-grid"] {
+  --radius: 22px;
+  --radius-sm: 10px;
+  --gap: 14px;
+  --card-pad: 22px 24px;
+  --card-border: 0px;
+  --card-shadow: 0 4px 6px rgb(0 0 0 / 5%);
+}
+
+/* --- Claymorphism: thick soft edges, inner and outer shadow ------------- */
+:root[data-look="claymorphism"] {
+  --radius: 22px;
+  --radius-sm: 14px;
+  --card-border: 3px;
+  --card-pad: 20px 22px;
+  --card-shadow: inset -2px -2px 8px rgb(0 0 0 / 7%), 4px 4px 10px rgb(0 0 0 / 10%);
+}
+
+/* --- Glassmorphism: frosted cards over a tinted backdrop --------------- */
+:root[data-look="glassmorphism"] {
+  --radius: 16px;
+  --radius-sm: 10px;
+  --card-shadow: 0 8px 32px -12px rgb(0 0 0 / 25%);
+}
+:root[data-look="glassmorphism"] body {
+  background:
+    radial-gradient(60rem 40rem at 10% -10%, color-mix(in srgb, var(--accent) 45%, transparent), transparent 70%),
+    radial-gradient(50rem 36rem at 100% 20%, color-mix(in srgb, var(--series-5) 34%, transparent), transparent 70%),
+    var(--surface-1);
+  background-attachment: fixed;
+}
+/* Mostly opaque: text contrast is measured against --surface-0, so the glass
+ * only softens the backdrop rather than letting it compete with the data. */
+:root[data-look="glassmorphism"] .card,
+:root[data-look="glassmorphism"] .shell-header {
+  background: color-mix(in srgb, var(--surface-0) 78%, transparent);
+  border-color: color-mix(in srgb, var(--line) 60%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* --- Aurora UI: layered colour light behind plain cards --------------- */
+:root[data-look="aurora-ui"] {
+  --radius: 14px;
+  --radius-sm: 8px;
+}
+/* Static, not animated: UUPM's 8-12s gradient loop costs paint time on every
+ * frame for a decorative effect, and the backdrop never sits behind text. */
+:root[data-look="aurora-ui"] body {
+  background:
+    radial-gradient(48rem 30rem at 0% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 70%),
+    radial-gradient(44rem 30rem at 100% 0%, color-mix(in srgb, var(--series-3) 30%, transparent), transparent 70%),
+    radial-gradient(40rem 30rem at 50% 100%, color-mix(in srgb, var(--series-7) 24%, transparent), transparent 70%),
+    var(--surface-1);
+  background-attachment: fixed;
+}
+
+/* --- Hover lift, where the style calls for it -------------------------- */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-look="bento-box-grid"] .card,
+  :root[data-look="claymorphism"] .card {
+    transition: transform 200ms ease-out;
+  }
+  :root[data-look="bento-box-grid"] .card:hover {
+    transform: scale(1.01);
+  }
+  :root[data-look="claymorphism"] .card:hover {
+    transform: translateY(-2px);
+  }
+}

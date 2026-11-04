@@ -4,6 +4,7 @@ The contrast gate is the point of this module: the palettes are a third-party
 brand dataset, and 44 of the 192 are not legible enough to hand to a user.
 """
 
+import re
 from pathlib import Path
 
 from app.design import systems as d
@@ -99,6 +100,21 @@ def test_design_css_scopes_the_accent_to_the_design_theme():
         assert token in scoped
     # The swatch's own token stays unscoped so it shows under any theme.
     assert "--design-accent" in root
+
+
+def test_every_style_has_a_look_and_every_look_a_style():
+    """The architect may only pick looks the kit can render, and vice versa."""
+    looks_css = (
+        Path(__file__).parents[1] / "templates/default-poc/frontend/src/kit/looks.css"
+    ).read_text(encoding="utf-8")
+    defined = set(re.findall(r':root\[data-look="([a-z0-9-]+)"\]', looks_css))
+    assert defined == set(d.STYLES)
+    assert d.DEFAULT_STYLE_ID in d.STYLES
+
+
+def test_unknown_style_falls_back_to_the_default():
+    assert d.resolve(None, None, "neon-vapor").style == d.DEFAULT_STYLE_ID
+    assert d.resolve(None, None, "glassmorphism").style == "glassmorphism"
 
 
 def test_template_ships_the_default_design_css():

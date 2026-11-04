@@ -89,7 +89,7 @@ def validate_spec(spec: Any) -> list[str]:
             # Unknown ids are not fatal: systems.resolve falls back to the
             # default, which is better than failing a whole generation over a
             # cosmetic choice. Only a wrong shape is an error.
-            for key in ("palette", "fonts"):
+            for key in ("palette", "fonts", "style"):
                 value = design.get(key)
                 if value is not None and not isinstance(value, str):
                     errors.append(f"designSystem.{key} must be a string id")

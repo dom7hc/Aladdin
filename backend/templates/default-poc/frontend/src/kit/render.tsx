@@ -184,6 +184,12 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
   useEffect(() => {
     if (spec.title) document.title = spec.title;
   }, [spec.title]);
+  // The look (shape, depth, density) from looks.css. The platform resolved it
+  // to a known id; an absent one keeps theme.css's defaults.
+  const look = spec.designSystem?.style;
+  useEffect(() => {
+    if (look) document.documentElement.setAttribute("data-look", look);
+  }, [look]);
   const endpoints = useMemo(
     () => Array.from(new Set(spec.widgets.map((w) => w.endpoint))),
     [spec],
