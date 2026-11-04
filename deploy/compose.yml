@@ -50,6 +50,12 @@ services:
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-low}
       LLM_THINKING: ${LLM_THINKING:-disabled}
+      # Claude on Foundry designs the dashboard when the resource is set;
+      # empty keeps the architect on the LLM_* model.
+      CLAUDE_FOUNDRY_RESOURCE: ${CLAUDE_FOUNDRY_RESOURCE:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
+      CLAUDE_EFFORT: ${CLAUDE_EFFORT:-medium}
       # Preview slots must agree with the site blocks in caddy/Caddyfile:
       # slot N is published on loopback 8200+N and served on 9000+N.
       PREVIEW_SLOTS: ${PREVIEW_SLOTS:-6}
