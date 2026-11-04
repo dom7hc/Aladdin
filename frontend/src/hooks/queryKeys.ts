@@ -6,5 +6,6 @@ export const queryKeys = {
   status: (id: string) => ['projects', id, 'status'] as const,
   artifacts: (id: string) => ['projects', id, 'artifacts'] as const,
   preview: (id: string) => ['projects', id, 'preview'] as const,
+  dataset: (id: string) => ['projects', id, 'dataset'] as const,
   scenarios: ['scenarios'] as const,
 }

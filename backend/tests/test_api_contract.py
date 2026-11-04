@@ -25,7 +25,7 @@ def test_contract_passes_when_frontend_calls_are_covered(tmp_path: Path):
             "const save = fetch(`/api/tasks/${id}`, { method: 'POST' })\n"
         ),
     )
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 0
     assert "contract OK" in result["stdout"]
 
@@ -36,7 +36,7 @@ def test_contract_fails_on_missing_backend_route(tmp_path: Path):
         backend='@app.get("/api/tasks")\n',
         frontend=("fetch('/api/tasks')\nfetch('/api/users', { method: 'POST' })\n"),
     )
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 1
     assert "/api/users" in result["stdout"]
     assert "MISSING IN BACKEND" in result["stdout"]
@@ -48,7 +48,7 @@ def test_contract_normalizes_path_params(tmp_path: Path):
         backend='@app.delete("/api/items/{item_id}")\n',
         frontend="fetch(`/api/items/${itemId}`, { method: 'DELETE' })\n",
     )
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 0
 
 
@@ -56,7 +56,7 @@ def test_contract_fails_when_backend_has_no_api_routes(tmp_path: Path):
     source = make_source(
         tmp_path, backend='@app.get("/health")\n', frontend="fetch('/api/tasks')\n"
     )
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 1
 
 
@@ -132,7 +132,7 @@ def test_spec_demands_crud_routes_for_editable_tables(tmp_path: Path):
         frontend="",
     )
     _write_spec(source, EDITABLE_TABLE_SPEC)
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 1
     assert "POST /api/joiners" in result["stdout"]
     assert "PUT /api/joiners/{param}" in result["stdout"]
@@ -149,7 +149,7 @@ def test_spec_crud_routes_satisfied_by_full_backend(tmp_path: Path):
         frontend="",
     )
     _write_spec(source, EDITABLE_TABLE_SPEC)
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 0
     assert "mutating" in result["stdout"]
 
@@ -162,7 +162,7 @@ def test_contract_is_method_aware(tmp_path: Path):
         backend='@app.get("/api/tasks")\n',
         frontend="fetch('/api/tasks', { method: 'POST' })\n",
     )
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 1
     assert "POST /api/tasks" in result["stdout"]
 
@@ -177,6 +177,112 @@ def test_read_only_spec_stays_get_only(tmp_path: Path):
     }
     source = make_source(tmp_path, backend='@app.get("/api/metrics")\n', frontend="")
     _write_spec(source, spec)
-    result = check_api_contract(source)
+    result = check_api_contract(source, probe=False)
     assert result["exitCode"] == 0
     assert "0 mutating" in result["stdout"]
+
+
+# --- The probe: routes the app really serves, not decorators in source text --
+
+SPEC_ORDERS = {"widgets": [{"kind": "table", "endpoint": "/api/orders", "title": "Orders"}]}
+
+
+def _app_source(tmp_path: Path, files: dict[str, str]) -> Path:
+    source = tmp_path / "source"
+    (source / "backend").mkdir(parents=True)
+    (source / "frontend" / "src").mkdir(parents=True)
+    for name, content in files.items():
+        (source / "backend" / name).write_text(content, encoding="utf-8")
+    _write_spec(source, SPEC_ORDERS)
+    return source
+
+
+ROUTER = (
+    "from fastapi import APIRouter\n"
+    "router = APIRouter()\n"
+    "@router.get('/api/orders')\n"
+    "def orders():\n    return []\n"
+)
+
+
+def test_probe_catches_a_router_that_is_never_mounted(tmp_path: Path):
+    """Observed live: the scan saw the decorator, the dashboard's table 404'd."""
+    source = _app_source(
+        tmp_path,
+        {
+            "main.py": "from fastapi import FastAPI\napp = FastAPI()\n",
+            "crud.py": ROUTER,
+            "app_init.py": "from main import app\nfrom crud import router\napp.include_router(router)\n",
+        },
+    )
+    assert check_api_contract(source, probe=False)["exitCode"] == 0, "the scan is fooled"
+    result = check_api_contract(source)
+    assert result["exitCode"] == 1
+    assert "GET /api/orders" in result["stdout"]
+    assert "served by the app" in result["stdout"]
+
+
+def test_probe_sees_routers_included_at_startup(tmp_path: Path):
+    source = _app_source(
+        tmp_path,
+        {
+            "main.py": (
+                "from contextlib import asynccontextmanager\n"
+                "from fastapi import FastAPI\n"
+                "from crud import router\n"
+                "@asynccontextmanager\n"
+                "async def lifespan(app):\n"
+                "    app.include_router(router)\n"
+                "    yield\n"
+                "app = FastAPI(lifespan=lifespan)\n"
+            ),
+            "crud.py": ROUTER,
+        },
+    )
+    assert check_api_contract(source)["exitCode"] == 0
+
+
+def test_probe_fails_a_backend_that_crashes_on_start(tmp_path: Path):
+    source = _app_source(
+        tmp_path,
+        {"main.py": "from fastapi import FastAPI\napp = FastAPI()\nraise RuntimeError('boom')\n"},
+    )
+    result = check_api_contract(source)
+    assert result["exitCode"] == 1
+    assert "BACKEND DOES NOT START" in result["stdout"]
+    assert "boom" in result["stdout"]
+
+
+def test_probe_falls_back_to_the_scan_when_a_dependency_is_not_installed(tmp_path: Path):
+    """Not the generated code's fault: judge it by the static scan instead."""
+    source = _app_source(
+        tmp_path,
+        {
+            "main.py": (
+                "import some_package_nobody_installed\n"
+                "from fastapi import FastAPI\napp = FastAPI()\n"
+                "@app.get('/api/orders')\ndef orders():\n    return []\n"
+            )
+        },
+    )
+    result = check_api_contract(source)
+    assert result["exitCode"] == 0
+    assert "static scan" in result["stdout"]
+
+
+def test_probe_sees_routers_included_at_import(tmp_path: Path):
+    """The common case. Newer FastAPI keeps included routers as lazy wrappers in
+    app.routes, so reading app.routes alone failed every valid backend like this.
+    """
+    source = _app_source(
+        tmp_path,
+        {
+            "main.py": (
+                "from fastapi import FastAPI\nfrom crud import router\n"
+                "app = FastAPI()\napp.include_router(router)\n"
+            ),
+            "crud.py": ROUTER,
+        },
+    )
+    result = check_api_contract(source)
+    assert result["exitCode"] == 0, result["stdout"]

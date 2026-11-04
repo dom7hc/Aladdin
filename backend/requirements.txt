@@ -11,3 +11,7 @@ anthropic>=2.4
 # no system packages, and it emits native PowerPoint charts so the deck
 # stays editable without needing a headless browser for screenshots.
 python-pptx>=1.0
+# Spreadsheet upload: multipart form parsing for UploadFile, and .xlsx
+# reading (read-only mode, first sheet). CSV needs nothing beyond stdlib.
+python-multipart>=0.0.9
+openpyxl>=3.1

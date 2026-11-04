@@ -60,6 +60,10 @@ DASHBOARD_SPEC_PATH = "frontend/src/dashboard.config.json"
 # ui-ux-pro-max data. The template ships a default so the import always resolves.
 DESIGN_CSS_PATH = "frontend/src/kit/design.css"
 
+# The user's uploaded rows, written by the platform before the developer runs.
+# Reserved: a model that echoes it back would replace real data with its own.
+DATASET_PATH = "backend/data/dataset.json"
+
 # Files every generated PoC must have. The frontend entry, package.json and the
 # design system all come from the template now, and the platform writes the
 # spec, so the generator owes only a runnable FastAPI app.
@@ -534,6 +538,13 @@ _ARCHITECT_SYSTEM = (
     "the form by the data's job: a single headline number is a stat, change "
     "over time is a line, comparison across categories is a bar. Never two "
     "measures of different scale in one chart — use two charts.\n"
+    "If the requirements include a 'dataset', it is the user's own file and "
+    "the dashboard is about it: every field a widget reads must be one of its "
+    "column keys or an aggregate of them (a count, sum or average, grouped by "
+    "a text or date column), and labels should use the column labels. Never "
+    "invent metrics the data cannot produce. When a date column spans more "
+    "than about two months, trend it by week or month, not by day — say so "
+    "in the endpoint and title, e.g. /api/sales/revenue-by-month.\n"
     'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>, '
     '"style": <id>}. Pick the palette whose industry is closest to the '
     "user's, a font pairing whose audience matches, and the style that suits "
@@ -620,13 +631,54 @@ _DEVELOPER_SYSTEM = (
     "create its parent directory if missing — /data is a mounted volume, so "
     "records there survive a restart, and the default keeps the project "
     "runnable outside the preview stack.\n"
+    "If the requirements include a 'dataset', the user's real rows are in "
+    f"{DATASET_PATH} (the platform writes it; never output it), shaped "
+    '{"columns": [{"key", "label", "type"}], "rows": [{<key>: value}]}. '
+    "Load it at startup from os.path.join(os.path.dirname(__file__), "
+    "'data', 'dataset.json') and compute every endpoint from those rows; "
+    "do not seed invented sample data. Values may be null; skip them in "
+    "aggregates. Dates are ISO strings. An editable table seeds its SQLite "
+    "table from these rows on first start.\n"
     "Never write any frontend file — no CSS, no components, no "
     "index.html. The whole frontend is platform-owned and any "
     "frontend path is rejected.\n"
     f"At most {MAX_GENERATED_FILES} files, 120 lines per file, write "
     "tersely, no markdown fences inside content, no TODO "
-    "placeholders, and emit valid JSON (escape newlines in strings)."
+    "placeholders, and emit valid JSON (escape newlines in strings).\n"
+    "When repairFeedback is non-empty you are fixing an existing backend, "
+    "given as currentFiles. Output ONLY the files you change, each complete; "
+    "every file you leave out stays exactly as it is. Fix what the feedback "
+    "names and keep every endpoint that already works. If an APIRouter's "
+    "routes are reported missing, include it in main.py with "
+    "app.include_router — a router mounted from a module nothing imports is "
+    "never served."
 )
+
+# Repairs send the backend as it stands, capped: enough for a PoC backend,
+# not enough to crowd the instruction out of the prompt.
+MAX_REPAIR_CONTEXT_CHARS = 60_000
+
+
+def _current_backend(project_id: str) -> dict[str, str]:
+    """The generated backend's source, for a repair to edit rather than rewrite.
+
+    Without it a repair is blind: observed, it regenerated main.py from memory,
+    stayed under the per-file line limit by dropping endpoints, and turned one
+    missing route into eight.
+    """
+    files: dict[str, str] = {}
+    budget = MAX_REPAIR_CONTEXT_CHARS
+    for path in ws.list_files(project_id):
+        if not path.startswith("backend/") or path == DATASET_PATH:
+            continue
+        if not path.endswith((".py", ".txt")):
+            continue
+        content = ws.read_file(project_id, path)
+        if len(content) > budget:
+            break
+        files[path] = content
+        budget -= len(content)
+    return files
 
 
 class LlmDeveloperAgent(DeveloperAgent):
@@ -648,6 +700,7 @@ class LlmDeveloperAgent(DeveloperAgent):
                     "requirements": requirements,
                     "architecture": architecture,
                     "repairFeedback": feedback or [],
+                    **({"currentFiles": _current_backend(project_id)} if feedback else {}),
                 },
                 ensure_ascii=False,
             ),
@@ -662,6 +715,11 @@ class LlmDeveloperAgent(DeveloperAgent):
             if not isinstance(entry, dict):
                 raise LLMError("LLM developer files contained a non-object entry")
             path, content = entry.get("path"), entry.get("content")
+            if path == DATASET_PATH:
+                # Dropped, not fatal: echoing the data file back is an easy
+                # mistake, and failing the run over it would be worse.
+                logger.warning("LLM developer output the dataset file; ignoring it")
+                continue
             if not isinstance(path, str) or not _safe_generated_path(path):
                 raise LLMError(f"LLM developer produced an unsafe path: {path!r}")
             # An empty __init__.py is a valid Python package marker that models

@@ -152,6 +152,24 @@ class PreviewResponse(CamelModel):
     updated_at: str | None = None
 
 
+class DatasetColumnResponse(CamelModel):
+    key: str
+    label: str
+    type: str
+
+
+class DatasetResponse(CamelModel):
+    """An uploaded file as the platform understood it, for the user to check."""
+
+    filename: str
+    row_count: int
+    used_rows: int
+    truncated: bool
+    notes: list[str]
+    columns: list[DatasetColumnResponse]
+    preview: list[dict[str, Any]]
+
+
 class ArtifactResponse(CamelModel):
     type: str
     version: int

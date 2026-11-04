@@ -629,3 +629,40 @@ async def test_requirement_agent_does_not_duplicate_a_question_it_already_asked(
     client = FakeClient(json.dumps({"requirements": {}, "reply": QUESTION_PER_FIELD["features"]}))
     turn = await LlmRequirementAgent(DeepSeekClient(client=client)).run(filled, [], "go on")
     assert turn.assistant_message.count(QUESTION_PER_FIELD["features"]) == 1
+
+
+async def test_developer_never_overwrites_the_uploaded_data(llm_workspace: str):
+    """The platform writes the user's rows; a model echoing the file is ignored."""
+    ws.write_file(llm_workspace, llm.DATASET_PATH, '{"rows": ["real"]}')
+    files = [
+        {"path": "backend/main.py", "content": "app = None\n"},
+        {"path": llm.DATASET_PATH, "content": '{"rows": ["invented"]}'},
+    ]
+    agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+    written = await agent.run(llm_workspace, {}, VALID_SPEC)
+    assert llm.DATASET_PATH not in written
+    assert json.loads(ws.read_file(llm_workspace, llm.DATASET_PATH)) == {"rows": ["real"]}
+
+
+async def test_repair_sends_the_current_backend_and_keeps_omitted_files(llm_workspace: str):
+    """A blind repair rewrote main.py from memory and lost seven endpoints."""
+    ws.write_file(llm_workspace, "backend/main.py", "app = 'first draft'\n")
+    ws.write_file(llm_workspace, "backend/crud.py", "router = 'kept'\n")
+    ws.write_file(llm_workspace, llm.DATASET_PATH, '{"rows": []}')
+    fixed = [{"path": "backend/main.py", "content": "app = 'fixed'\n"}]
+    client = FakeClient(json.dumps({"files": fixed}))
+    agent = LlmDeveloperAgent(DeepSeekClient(client=client))
+    await agent.run(llm_workspace, {}, VALID_SPEC, ["GET /api/orders missing"])
+
+    sent = json.loads(client.chat.completions.calls[0]["messages"][1]["content"])
+    assert sent["currentFiles"]["backend/crud.py"] == "router = 'kept'\n"
+    assert llm.DATASET_PATH not in sent["currentFiles"], "the rows are not code"
+    assert ws.read_file(llm_workspace, "backend/main.py") == "app = 'fixed'\n"
+    assert ws.read_file(llm_workspace, "backend/crud.py") == "router = 'kept'\n"
+
+
+async def test_first_draft_sends_no_current_files(llm_workspace: str):
+    client = FakeClient(json.dumps({"files": [{"path": "backend/main.py", "content": "a\n"}]}))
+    await LlmDeveloperAgent(DeepSeekClient(client=client)).run(llm_workspace, {}, VALID_SPEC)
+    sent = json.loads(client.chat.completions.calls[0]["messages"][1]["content"])
+    assert "currentFiles" not in sent

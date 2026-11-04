@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/AppLayout'
+import { DataSourcePanel } from '@/components/requirements/DataSourcePanel'
 import { RequirementSummaryPanel } from '@/components/requirements/RequirementSummaryPanel'
 import { Button } from '@/components/ui/Button'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -193,6 +194,7 @@ export function ChatPage() {
               autofilling={autofill.isPending}
               finalizing={finalize.isPending}
             />
+            <DataSourcePanel projectId={project.id} />
             {autofill.isError && (
               <p className="text-sm text-error">
                 Aladdin could not autofill the sections. Please try again.

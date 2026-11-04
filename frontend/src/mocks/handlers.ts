@@ -1,4 +1,5 @@
 ﻿import { ApiError } from '@/api/errors'
+import { parseMockDataset } from '@/mocks/dataset'
 import {
   EMPTY_REQUIREMENTS,
   missingRequirementFields,
@@ -40,6 +41,15 @@ import {
 } from './store'
 
 const STEP_KEYS = ['requirements', 'architect', 'developer', 'reviewer', 'tester']
+
+// Same as ProjectService.GENERATING_STATUSES: uploads wait until these finish.
+const GENERATING = new Set<string>([
+  'ARCHITECTING',
+  'ARCHITECTURE_READY',
+  'GENERATING',
+  'REVIEWING',
+  'TESTING',
+])
 
 interface Phase {
   at: number
@@ -510,6 +520,30 @@ export function handleMockRequest({ method, path, body }: MockRequest): unknown 
       project.preview = stopped
       touchProject(project)
       return stopped
+    }
+  }
+
+  // /projects/:id/dataset — mirrors backend upload/read/delete
+  if (sub === 'dataset') {
+    if (method === 'POST') {
+      if (GENERATING.has(project.status)) {
+        throw new ApiError(409, 'The dashboard is being generated; upload once it finishes.')
+      }
+      const upload = (body ?? {}) as { filename?: string; size?: number; text?: string }
+      const dataset = parseMockDataset(upload.filename ?? 'upload', upload.size ?? 0, upload.text ?? '')
+      state.datasets[projectId] = dataset
+      touchProject(project)
+      return dataset
+    }
+    if (method === 'GET') {
+      const dataset = state.datasets[projectId]
+      if (!dataset) throw new ApiError(404, 'No file uploaded for this project')
+      return dataset
+    }
+    if (method === 'DELETE') {
+      delete state.datasets[projectId]
+      persist()
+      return undefined
     }
   }
 
