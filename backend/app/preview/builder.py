@@ -87,7 +87,19 @@ def pick_slot(occupied: set[int] | None = None) -> int:
 
 
 def project_name(project_id: str) -> str:
-    """Compose project name for a PoC preview stack."""
+    """Compose project name for a PoC preview stack: the whole id.
+
+    Not a prefix: a MongoDB ObjectId starts with its creation time in seconds,
+    so two projects created in the same second shared the first 8 characters.
+    Seen in production: two previews started together got one compose
+    project, the second silently replaced the first, and the first was still
+    reported as running while its port answered 502.
+    """
+    return f"aladdin-poc-{project_id.lower()}"
+
+
+def _legacy_project_name(project_id: str) -> str:
+    """The 8-character name stacks started before the fix still carry."""
     return f"aladdin-poc-{project_id[:8]}"
 
 
@@ -150,6 +162,16 @@ def stack_down(project_id: str, source_dir: Path | None = None) -> None:
         raise PreviewError(f"Failed to stop preview stack: {exc}") from exc
     if result.returncode != 0:
         raise PreviewError(_trim(result.stderr or "docker compose down failed"))
+    # A stack started under the old prefix name would otherwise outlive its
+    # preview record and keep the slot's port bound. Best effort: compose
+    # finds it by label, and there is nothing to stop for newer stacks.
+    try:
+        _run(
+            ["docker", "compose", "-p", _legacy_project_name(project_id), "down", "-v"],
+            120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        logger.warning("Could not stop a legacy-named preview stack for %s", project_id)
 
 
 def wait_healthy(project_id: str) -> bool:
