@@ -140,7 +140,7 @@ async def test_start_and_failed_build_flow(db, monkeypatch):
     await repo.update_fields(project_id, {"status": "READY"})
     monkeypatch.setattr(builder, "docker_available", lambda: True)
 
-    async def explode(pid, occupied):
+    async def explode(pid, slot):
         raise builder.PreviewError("docker build exploded")
 
     monkeypatch.setattr(builder, "build_and_start", explode)
@@ -159,9 +159,10 @@ async def test_successful_build_flow_records_slot(db, monkeypatch):
     await repo.update_fields(project_id, {"status": "READY"})
     monkeypatch.setattr(builder, "docker_available", lambda: True)
 
-    async def fake_build(pid, occupied):
+    async def fake_build(pid, slot):
         return 7
 
+    monkeypatch.setattr(builder, "pick_slot", lambda occupied: 7)
     monkeypatch.setattr(builder, "build_and_start", fake_build)
     monkeypatch.setattr(builder.config, "PREVIEW_PORT_BASE", 8200)
     monkeypatch.setattr(builder.config, "PREVIEW_PUBLIC_PORT_BASE", 9000)
@@ -344,3 +345,36 @@ def test_stack_down_also_stops_a_stack_under_the_old_short_name(monkeypatch):
     builder.stack_down(PROJECT_ID)
     names = [args[args.index("-p") + 1] for args in calls]
     assert names == [f"aladdin-poc-{PROJECT_ID}", f"aladdin-poc-{PROJECT_ID[:8]}"]
+
+
+async def test_previews_started_together_get_different_slots(db, monkeypatch):
+    """Seen in production: two previews started at once were both given slot 1,
+    because the slot was recorded only when the build finished."""
+    import asyncio
+
+    repo = ProjectRepository(db)
+    ids = []
+    for name in ("A", "B"):
+        pid = await repo.create(name, name, empty_requirements("p"), 100)
+        await repo.update_fields(pid, {"status": "READY"})
+        ids.append(pid)
+    monkeypatch.setattr(builder, "docker_available", lambda: True)
+    # Nothing is bound on the host during these builds, like a real build
+    # whose containers are not up yet: only the reservation can tell them apart.
+    monkeypatch.setattr(
+        builder,
+        "pick_slot",
+        lambda occupied: min(set(range(1, 11)) - (occupied or set())),
+    )
+
+    async def slow_build(pid, slot):
+        await asyncio.sleep(0.05)
+        return slot
+
+    monkeypatch.setattr(builder, "build_and_start", slow_build)
+    service = PreviewService(db)
+    for pid in ids:
+        await service.start(pid)
+    await asyncio.gather(*(service.run_build(pid) for pid in ids))
+    slots = [(await service.get_state(pid))["slot"] for pid in ids]
+    assert sorted(slots) == [1, 2]
