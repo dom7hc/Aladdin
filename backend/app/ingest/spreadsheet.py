@@ -18,7 +18,7 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 MAX_BYTES = 5 * 1024 * 1024
@@ -238,7 +238,8 @@ def _try_convert(value: Any, column_type: str) -> Any:
         for fmt in _DATE_FORMATS:
             try:
                 # A calendar date has no zone; only .date() is kept.
-                return datetime.strptime(text, fmt).date().isoformat()  # noqa: DTZ007
+                parsed = datetime.strptime(text, fmt).replace(tzinfo=UTC)
+                return parsed.date().isoformat()
             except ValueError:
                 continue
         return _NO
