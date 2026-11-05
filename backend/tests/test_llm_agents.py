@@ -692,3 +692,22 @@ async def test_first_draft_sends_no_current_files(llm_workspace: str):
     await LlmDeveloperAgent(DeepSeekClient(client=client)).run(llm_workspace, {}, VALID_SPEC)
     sent = json.loads(client.chat.completions.calls[0]["messages"][1]["content"])
     assert "currentFiles" not in sent
+
+
+async def test_developer_names_the_users_file_in_the_spec(llm_workspace: str):
+    """The header says where the numbers come from, and that a sample is used."""
+    files = [{"path": "backend/main.py", "content": "app = None\n"}]
+    agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+    requirements = {
+        "dataset": {"filename": "employee.csv", "rowCount": 5000, "fileRowCount": 14999}
+    }
+    await agent.run(llm_workspace, requirements, VALID_SPEC)
+    spec = json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH))
+    assert spec["source"] == {"filename": "employee.csv", "rows": 5000, "fileRows": 14999}
+
+
+async def test_developer_adds_no_source_without_a_file(llm_workspace: str):
+    files = [{"path": "backend/main.py", "content": "app = None\n"}]
+    agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
+    await agent.run(llm_workspace, {}, VALID_SPEC)
+    assert "source" not in json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH))

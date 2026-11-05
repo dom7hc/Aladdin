@@ -35,9 +35,17 @@ export function parseMockDataset(filename: string, size: number, text: string): 
   const [header, ...allBody] = rows
   if (allBody.length === 0) throw new ApiError(422, 'The file has a header row but no data rows.')
 
-  const labels = Array.from({ length: width }, (_, i) => header[i]?.trim().slice(0, 80) || `Column ${i + 1}`)
+  const labels = Array.from(
+    { length: width },
+    (_, i) => readableLabel(header[i]?.trim() ?? '').slice(0, 80) || `Column ${i + 1}`,
+  )
   const keys = uniqueKeys(labels)
-  const body = allBody.slice(0, MAX_ROWS)
+  // Evenly spaced, like backend spreadsheet.build: a sorted export's first
+  // rows are not representative of the file.
+  const body =
+    allBody.length > MAX_ROWS
+      ? Array.from({ length: MAX_ROWS }, (_, i) => allBody[Math.floor((i * allBody.length) / MAX_ROWS)])
+      : allBody
   const columns: DatasetColumn[] = keys.map((key, i) => ({
     key,
     label: labels[i],
@@ -52,7 +60,12 @@ export function parseMockDataset(filename: string, size: number, text: string): 
     rowCount: allBody.length,
     usedRows: records.length,
     truncated,
-    notes: truncated ? [`Only the first ${MAX_ROWS} of ${allBody.length} rows are used.`] : [],
+    notes: truncated
+      ? [
+          `${MAX_ROWS} of ${allBody.length} rows are used, sampled evenly across the file, ` +
+            'so totals are scaled down but rates and shares stay representative.',
+        ]
+      : [],
     columns,
     // Only the preview is kept: the mock persists to localStorage.
     preview: records.slice(0, 5),
@@ -99,6 +112,20 @@ function parseCsv(text: string): string[][] {
     rows.push(row)
   }
   return rows
+}
+
+/** Mirrors backend spreadsheet._clean_label: satisfaction_level -> Satisfaction level. */
+function readableLabel(text: string): string {
+  const codeStyle = /^[A-Za-z][A-Za-z0-9]*([_.-][A-Za-z0-9]+)*$/.test(text)
+  if (codeStyle && (text === text.toLowerCase() || (text.includes('_') && text === text.toUpperCase()))) {
+    const words = text.replace(/[_.-]+/g, ' ').trim().toLowerCase()
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+  if (codeStyle && text.includes('_')) {
+    const words = text.replace(/_/g, ' ').trim()
+    return words.charAt(0).toUpperCase() + words.slice(1)
+  }
+  return text
 }
 
 function uniqueKeys(labels: string[]): string[] {

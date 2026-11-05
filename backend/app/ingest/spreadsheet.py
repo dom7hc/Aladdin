@@ -23,6 +23,9 @@ from typing import Any
 
 MAX_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 5000
+# Rows read from a workbook at most, before sampling. A 5 MB file cannot hold
+# many more; this only bounds memory against a pathological sheet.
+MAX_READ_ROWS = 200_000
 MAX_COLUMNS = 40
 MAX_CELL_CHARS = 500
 SUMMARY_EXAMPLES = 3
@@ -114,8 +117,8 @@ def _read_xlsx(data: bytes) -> tuple[list[list[Any]], bool]:
         raise DatasetError(f"Could not open the workbook: {exc}") from exc
     try:
         sheet = workbook.worksheets[0]
-        # MAX_ROWS + a header and some blank lines; never read a huge sheet whole.
-        limit = MAX_ROWS + 50
+        # The whole sheet, so a sample can be drawn from all of it (see build).
+        limit = MAX_READ_ROWS
         rows = [list(row) for _, row in zip(range(limit + 1), sheet.iter_rows(values_only=True))]
         return rows[:limit], len(rows) > limit
     finally:
@@ -138,7 +141,11 @@ def build(filename: str, table: list[list[Any]], cut_at_read: bool = False) -> D
     keys = _unique_keys(labels)
     row_count = len(body)
     truncated = row_count > MAX_ROWS or cut_at_read
-    body = body[:MAX_ROWS]
+    if row_count > MAX_ROWS:
+        # Evenly spaced, in file order, never the first N. Exports are often
+        # sorted: the HR file we tested lists leavers first, so its first 5000
+        # rows showed 40% attrition against a true 23.8%.
+        body = [body[i * row_count // MAX_ROWS] for i in range(MAX_ROWS)]
 
     raw_columns = [[row[i] if i < len(row) else None for row in body] for i in range(width)]
     columns: list[Column] = []
@@ -153,9 +160,12 @@ def build(filename: str, table: list[list[Any]], cut_at_read: bool = False) -> D
     ]
     notes = []
     if cut_at_read:
-        notes.append(f"Only the first {MAX_ROWS} rows are used; the sheet has more.")
-    elif truncated:
-        notes.append(f"Only the first {MAX_ROWS} of {row_count} rows are used.")
+        notes.append(f"Only the first {MAX_READ_ROWS} rows of the sheet were read.")
+    if row_count > MAX_ROWS:
+        notes.append(
+            f"{MAX_ROWS} of {row_count} rows are used, sampled evenly across the file, "
+            "so totals are scaled down but rates and shares stay representative."
+        )
     return Dataset(
         filename=filename,
         columns=columns,
@@ -170,8 +180,21 @@ def _present(value: Any) -> bool:
     return value is not None and str(value).strip() != ""
 
 
+# Headers written for code rather than people: satisfaction_level,
+# average-monthly-hours, LIMIT_BAL, left.
+_CODE_STYLE = re.compile(r"^[A-Za-z][A-Za-z0-9]*([_.\-][A-Za-z0-9]+)*$")
+
+
 def _clean_label(value: Any, index: int) -> str:
     text = str(value).strip() if _present(value) else ""
+    # Only headers that are all lower case or all upper case with separators:
+    # "Revenue (EUR)" and "Order Date" are already written for people.
+    if _CODE_STYLE.match(text) and (text.islower() or ("_" in text and text.isupper())):
+        words = re.sub(r"[_.\-]+", " ", text).strip().lower()
+        text = words[:1].upper() + words[1:]
+    elif _CODE_STYLE.match(text) and "_" in text:
+        words = text.replace("_", " ").strip()
+        text = words[:1].upper() + words[1:]
     return text[:80] or f"Column {index + 1}"
 
 
@@ -282,6 +305,8 @@ def summary(dataset: Dataset) -> dict[str, Any]:
     return {
         "filename": dataset.filename,
         "rowCount": len(dataset.rows),
+        # Rows in the file; more than rowCount means an even sample is used.
+        "fileRowCount": dataset.row_count,
         "columns": columns,
         "sampleRows": dataset.rows[:SUMMARY_ROWS],
     }

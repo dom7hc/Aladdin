@@ -140,4 +140,10 @@ def test_prompt_offers_every_usable_choice():
     offered = d.choices_for_prompt().splitlines()
     assert len(offered) == len(d.palettes())
     assert any("logistics-delivery" in line for line in offered)
-    assert len(d.pairing_choices_for_prompt().splitlines()) == len(d.pairings())
+    offered_fonts = d.pairing_choices_for_prompt()
+    assert len(offered_fonts.splitlines()) == len(
+        [p for p in d.pairings() if not d.is_code_font(p)]
+    )
+    # Code-font headings read like a terminal on a business dashboard.
+    assert "dashboard-data" not in offered_fonts
+    assert "modern-professional" in offered_fonts

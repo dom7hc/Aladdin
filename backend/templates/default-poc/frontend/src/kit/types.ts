@@ -20,6 +20,8 @@ export interface StatWidget {
   icon?: string;
   /** A rise is bad news (attrition, defects, cost); absent, guessed from the label. */
   lowerIsBetter?: boolean;
+  /** What the change compares against, e.g. "vs last month". */
+  deltaLabel?: string;
 }
 
 /** A value over an ordered dimension — time, usually. */
@@ -106,4 +108,6 @@ export interface DashboardSpec {
   designSystem?: { palette?: string; fonts?: string; style?: string };
   widgets: Widget[];
   filters?: Filter[];
+  /** The user's file, written by the platform: shown under the title. */
+  source?: { filename: string; rows: number; fileRows: number };
 }

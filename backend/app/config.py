@@ -35,7 +35,9 @@ LLM_ENABLED = _env_flag("LLM_ENABLED", "false")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-flash")
-LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
+# 120 failed a real production run: the developer's reply for a dashboard with
+# an editable 5000-row table took longer, and the whole generation died.
+LLM_TIMEOUT_SECONDS = float(os.getenv("LLM_TIMEOUT_SECONDS", "300"))
 # 8192 truncated the developer agent on ordinary PoCs — roughly one run in
 # three failed with "LLM output was truncated", which a user sees as a dead
 # FAILED project. The API accepts 32768, and this is a ceiling rather than a
