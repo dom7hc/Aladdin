@@ -40,11 +40,13 @@ export function StatTile({
   trend,
   icon,
   lowerIsBetter,
+  deltaLabel,
 }: {
   label: string;
   value: number | string;
   unit?: string;
   delta?: number;
+  deltaLabel?: string;
   trend?: number[];
   icon?: string;
   lowerIsBetter?: boolean;
@@ -77,7 +79,7 @@ export function StatTile({
           <span className={`delta delta-${tone}`}>
             {arrow} {Math.abs(delta).toFixed(1)}%
           </span>
-          <span className="tile-note">vs previous period</span>
+          <span className="tile-note">{deltaLabel || "vs previous period"}</span>
         </div>
       ) : null}
     </section>
@@ -235,90 +237,281 @@ export function Skeleton() {
   );
 }
 
-export function DataTable({
-  rows,
-  columns,
-}: {
-  rows: Record<string, unknown>[];
-  columns: { label: string; field: string; align?: "left" | "right" }[];
-}) {
-  const [sort, setSort] = useState<{ field: string; dir: 1 | -1 } | null>(null);
+type TableColumn = { label: string; field: string; align?: "left" | "right" };
+type Row = Record<string, unknown>;
 
-  const sorted = useMemo(() => {
-    if (!sort) return rows;
-    return [...rows].sort((a, b) => {
+const PAGE_SIZE = 25;
+
+/** A records table shows exact values: 12,400 rather than the charts' 12.4k. */
+function exact(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+function TableCell({ field, value }: { field: string; value: unknown }) {
+  if (typeof value === "number") return <>{exact(value)}</>;
+  return <Cell field={field} value={value} />;
+}
+
+/** The full text as a tooltip when the cell is cut short with an ellipsis. */
+function longText(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 36 ? value : undefined;
+}
+
+function matches(row: Row, term: string): boolean {
+  return Object.values(row).some((value) =>
+    String(value ?? "")
+      .toLowerCase()
+      .includes(term),
+  );
+}
+
+function csvField(value: unknown): string {
+  const text = value === null || value === undefined ? "" : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * Every row as a CSV the user can open in Excel or upload again: the table's
+ * columns first under their labels, then any other field the API returned.
+ * The platform's own row id is left out of editable tables, since the file
+ * the user uploaded never had it.
+ */
+function downloadCsv(rows: Row[], columns: TableColumn[], name: string, dropId: boolean) {
+  const known = columns.map((c) => c.field);
+  const extra = Array.from(new Set(rows.flatMap((row) => Object.keys(row)))).filter(
+    (key) => !known.includes(key),
+  );
+  const fields = [...known, ...extra].filter((field) => !(dropId && field === "id"));
+  const label = (field: string) => columns.find((c) => c.field === field)?.label ?? field;
+  const lines = [
+    fields.map((field) => csvField(label(field))).join(","),
+    ...rows.map((row) => fields.map((field) => csvField(row[field])).join(",")),
+  ];
+  // BOM: without it Excel reads UTF-8 as ANSI and mangles umlauts and euros.
+  const blob = new Blob(["﻿" + lines.join("\r\n") + "\r\n"], {
+    type: "text/csv;charset=utf-8",
+  });
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "table";
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${slug}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+}
+
+/** Search, sort and page a list of rows; shared by both table kinds. */
+function useTableView(rows: Row[]) {
+  const [term, setTerm] = useState("");
+  const [sort, setSort] = useState<{ field: string; dir: 1 | -1 } | null>(null);
+  const [page, setPage] = useState(0);
+
+  const shown = useMemo(() => {
+    const needle = term.trim().toLowerCase();
+    const found = needle ? rows.filter((row) => matches(row, needle)) : rows;
+    if (!sort) return found;
+    return [...found].sort((a, b) => {
       const x = a[sort.field];
       const y = b[sort.field];
       if (typeof x === "number" && typeof y === "number") return (x - y) * sort.dir;
-      return String(x ?? "").localeCompare(String(y ?? "")) * sort.dir;
+      return String(x ?? "").localeCompare(String(y ?? ""), undefined, { numeric: true }) * sort.dir;
     });
-  }, [rows, sort]);
+  }, [rows, term, sort]);
 
-  if (!rows.length) return <p className="empty">No records yet.</p>;
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const current = Math.min(page, pages - 1);
+  return {
+    term,
+    search: (value: string) => {
+      setTerm(value);
+      setPage(0);
+    },
+    sort,
+    toggleSort: (field: string) =>
+      setSort((s) => (s?.field === field && s.dir === 1 ? { field, dir: -1 } : { field, dir: 1 })),
+    shown,
+    pageRows: shown.slice(current * PAGE_SIZE, (current + 1) * PAGE_SIZE),
+    page: current,
+    pages,
+    setPage,
+  };
+}
 
+type TableView = ReturnType<typeof useTableView>;
+
+function Toolbar({
+  view,
+  total,
+  onDownload,
+  children,
+}: {
+  view: TableView;
+  total: number;
+  onDownload: () => void;
+  children?: ReactNode;
+}) {
+  const filtered = view.shown.length !== total;
   return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((col) => {
-              const active = sort?.field === col.field;
-              return (
-                <th
-                  key={col.field}
-                  aria-sort={active ? (sort!.dir === 1 ? "ascending" : "descending") : undefined}
-                  onClick={() =>
-                    setSort(
-                      active && sort!.dir === 1
-                        ? { field: col.field, dir: -1 }
-                        : { field: col.field, dir: 1 },
-                    )
-                  }
-                  style={{ textAlign: alignFor(col, rows) }}
-                >
-                  {col.label}
-                  {active ? (sort!.dir === 1 ? " ↑" : " ↓") : ""}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((row, i) => (
-            <tr key={i}>
-              {columns.map((col) => (
-                <td key={col.field} style={{ textAlign: alignFor(col, rows) }}>
-                  <Cell field={col.field} value={row[col.field]} />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="table-toolbar">
+      <input
+        type="search"
+        className="table-search"
+        placeholder="Search…"
+        aria-label="Search rows"
+        value={view.term}
+        onChange={(e) => view.search(e.target.value)}
+      />
+      <span className="table-count">
+        {filtered ? `${exact(view.shown.length)} of ${exact(total)}` : exact(total)} rows
+      </span>
+      <span className="shell-spacer" />
+      {children}
+      <button
+        type="button"
+        className="btn"
+        onClick={onDownload}
+        disabled={!view.shown.length}
+        title={filtered ? "Download the rows that match the search" : "Download every row"}
+      >
+        ⤓ Download CSV
+      </button>
     </div>
   );
 }
 
-type TableColumn = { label: string; field: string; align?: "left" | "right" };
+function Pager({ view }: { view: TableView }) {
+  if (view.pages <= 1) return null;
+  const first = view.page * PAGE_SIZE + 1;
+  const last = Math.min(view.shown.length, first + PAGE_SIZE - 1);
+  return (
+    <div className="table-pager">
+      <button
+        type="button"
+        className="btn"
+        disabled={view.page === 0}
+        onClick={() => view.setPage(view.page - 1)}
+        aria-label="Previous page"
+      >
+        ‹
+      </button>
+      <span>
+        {exact(first)}–{exact(last)} of {exact(view.shown.length)}
+      </span>
+      <button
+        type="button"
+        className="btn"
+        disabled={view.page >= view.pages - 1}
+        onClick={() => view.setPage(view.page + 1)}
+        aria-label="Next page"
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+function SortableHead({
+  view,
+  columns,
+  rows,
+  actions,
+}: {
+  view: TableView;
+  columns: TableColumn[];
+  rows: Row[];
+  actions?: boolean;
+}) {
+  return (
+    <thead>
+      <tr>
+        {columns.map((col) => {
+          const active = view.sort?.field === col.field;
+          return (
+            <th
+              key={col.field}
+              aria-sort={active ? (view.sort!.dir === 1 ? "ascending" : "descending") : undefined}
+              onClick={() => view.toggleSort(col.field)}
+              style={{ textAlign: alignFor(col, rows) }}
+            >
+              {col.label}
+              {active ? (view.sort!.dir === 1 ? " ↑" : " ↓") : ""}
+            </th>
+          );
+        })}
+        {actions ? (
+          <th className="cell-actions">
+            <span className="visually-hidden">Actions</span>
+          </th>
+        ) : null}
+      </tr>
+    </thead>
+  );
+}
+
+export function DataTable({
+  rows,
+  columns,
+  title,
+}: {
+  rows: Row[];
+  columns: TableColumn[];
+  title: string;
+}) {
+  const view = useTableView(rows);
+  if (!rows.length) return <p className="empty">No records yet.</p>;
+  return (
+    <div>
+      <Toolbar view={view} total={rows.length} onDownload={() => downloadCsv(view.shown, columns, title, false)} />
+      <div className="table-scroll">
+        <table>
+          <SortableHead view={view} columns={columns} rows={rows} />
+          <tbody>
+            {view.pageRows.map((row, i) => (
+              <tr key={i}>
+                {columns.map((col) => (
+                  <td
+                    key={col.field}
+                    style={{ textAlign: alignFor(col, rows) }}
+                    title={longText(row[col.field])}
+                  >
+                    <TableCell field={col.field} value={row[col.field]} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!view.shown.length ? <p className="empty">No rows match “{view.term}”.</p> : null}
+      <Pager view={view} />
+    </div>
+  );
+}
 
 /**
  * A table whose rows users can create, edit and delete. The backend contract
  * comes from the spec: POST <endpoint> creates, PUT/DELETE <endpoint>/{id}
  * update and remove, and every row carries an "id" (validated by
- * app/generation/spec.py).
+ * app/generation/spec.py). Download CSV saves the table as it stands, edits
+ * included.
  */
 export function EditableDataTable({
   endpoint,
   rows,
   columns,
+  title,
   onMutate,
 }: {
   endpoint: string;
-  rows: Record<string, unknown>[];
+  rows: Row[];
   columns: TableColumn[];
+  title: string;
   onMutate: () => void;
 }) {
   const fields = columns.filter((col) => col.field !== "id");
+  const view = useTableView(rows);
+  const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<unknown>(null);
   const [editDraft, setEditDraft] = useState<Record<string, string>>({});
@@ -337,39 +530,62 @@ export function EditableDataTable({
       });
       if (!response.ok) throw new Error(`${method} ${path} returned ${response.status}`);
       onMutate();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "The change could not be saved");
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  const addDisabled = busy || fields.some((col) => !draft[col.field]?.trim());
-
   return (
     <div>
-      <div className="add-row">
-        {fields.map((col) => (
-          <input
-            key={col.field}
-            aria-label={col.label}
-            placeholder={col.label}
-            value={draft[col.field] ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, [col.field]: e.target.value }))}
-          />
-        ))}
+      <Toolbar view={view} total={rows.length} onDownload={() => downloadCsv(view.shown, columns, title, true)}>
         <button
           type="button"
           className="btn btn-accent"
-          disabled={addDisabled}
-          onClick={() => {
-            mutate(endpoint, "POST", { ...draft });
-            setDraft({});
+          onClick={() => setAdding((a) => !a)}
+          aria-expanded={adding}
+        >
+          {adding ? "Close" : "+ Add row"}
+        </button>
+      </Toolbar>
+
+      {adding ? (
+        <form
+          className="add-panel"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            if (await mutate(endpoint, "POST", { ...draft })) {
+              setDraft({});
+              setAdding(false);
+            }
           }}
         >
-          Add
-        </button>
-      </div>
+          {fields.map((col) => (
+            <label key={col.field}>
+              <span>{col.label}</span>
+              <input
+                value={draft[col.field] ?? ""}
+                onChange={(e) => setDraft((d) => ({ ...d, [col.field]: e.target.value }))}
+              />
+            </label>
+          ))}
+          <div className="add-actions">
+            <button type="button" className="btn" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-accent"
+              disabled={busy || fields.every((col) => !draft[col.field]?.trim())}
+            >
+              Save row
+            </button>
+          </div>
+        </form>
+      ) : null}
 
       {error ? (
         <p className="form-error" role="alert">
@@ -382,22 +598,11 @@ export function EditableDataTable({
       {rows.length > 0 ? (
         <div className="table-scroll">
           <table>
-            <thead>
-              <tr>
-                {columns.map((col) => (
-                  <th key={col.field} style={{ textAlign: alignFor(col, rows) }}>
-                    {col.label}
-                  </th>
-                ))}
-                <th className="cell-actions">
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
+            <SortableHead view={view} columns={columns} rows={rows} actions />
             <tbody>
-              {rows.map((row) =>
+              {view.pageRows.map((row) =>
                 editingId !== null && row.id === editingId ? (
-                  <tr key={String(row.id)}>
+                  <tr key={String(row.id)} className="row-editing">
                     {columns.map((col) => (
                       <td key={col.field}>
                         {col.field === "id" ? (
@@ -418,18 +623,15 @@ export function EditableDataTable({
                         type="button"
                         className="btn btn-accent"
                         disabled={busy}
-                        onClick={() => {
-                          mutate(`${endpoint}/${row.id}`, "PUT", { ...editDraft });
-                          setEditingId(null);
+                        onClick={async () => {
+                          if (await mutate(`${endpoint}/${row.id}`, "PUT", { ...editDraft })) {
+                            setEditingId(null);
+                          }
                         }}
                       >
                         Save
                       </button>
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setEditingId(null)}
-                      >
+                      <button type="button" className="btn" onClick={() => setEditingId(null)}>
                         Cancel
                       </button>
                     </td>
@@ -437,19 +639,25 @@ export function EditableDataTable({
                 ) : (
                   <tr key={String(row.id)}>
                     {columns.map((col) => (
-                      <td key={col.field} style={{ textAlign: alignFor(col, rows) }}>
-                        <Cell field={col.field} value={row[col.field]} />
+                      <td
+                        key={col.field}
+                        style={{ textAlign: alignFor(col, rows) }}
+                        title={longText(row[col.field])}
+                      >
+                        <TableCell field={col.field} value={row[col.field]} />
                       </td>
                     ))}
                     <td className="cell-actions">
                       <button
                         type="button"
-                        className="btn"
+                        className="btn btn-quiet"
                         disabled={busy}
                         onClick={() => {
                           setEditingId(row.id);
                           setEditDraft(
-                            Object.fromEntries(fields.map((col) => [col.field, String(row[col.field] ?? "")])),
+                            Object.fromEntries(
+                              fields.map((col) => [col.field, String(row[col.field] ?? "")]),
+                            ),
                           );
                         }}
                       >
@@ -457,9 +665,14 @@ export function EditableDataTable({
                       </button>
                       <button
                         type="button"
-                        className="btn btn-danger"
+                        className="btn btn-quiet btn-danger"
                         disabled={busy}
-                        onClick={() => mutate(`${endpoint}/${row.id}`, "DELETE")}
+                        onClick={() => {
+                          // A misclick here loses a record; ask once.
+                          if (window.confirm("Delete this row?")) {
+                            void mutate(`${endpoint}/${row.id}`, "DELETE");
+                          }
+                        }}
                       >
                         Delete
                       </button>
@@ -471,6 +684,10 @@ export function EditableDataTable({
           </table>
         </div>
       ) : null}
+      {rows.length > 0 && !view.shown.length ? (
+        <p className="empty">No rows match “{view.term}”.</p>
+      ) : null}
+      <Pager view={view} />
     </div>
   );
 }

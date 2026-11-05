@@ -87,6 +87,18 @@ function asRows(payload: Payload | undefined): Record<string, unknown>[] {
   return [];
 }
 
+/**
+ * A change worth showing, or none. A missing or non-numeric value used to read
+ * as "0.0%", and a seen-live "▼29230%" came from a backend dividing by a near
+ * empty period: past 999% the figure says more about the maths than the data.
+ */
+function trustworthyDelta(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const number = Number(value);
+  if (!Number.isFinite(number) || Math.abs(number) > 999) return undefined;
+  return number;
+}
+
 function asObject(payload: Payload | undefined): Record<string, unknown> {
   if (Array.isArray(payload)) return payload[0] ?? {};
   return (payload as Record<string, unknown>) ?? {};
@@ -115,14 +127,14 @@ function WidgetView({
     case "stat": {
       const source = asObject(payload);
       const trend = source[widget.trendField ?? ""];
+      const rawDelta = widget.deltaField !== undefined ? source[widget.deltaField] : undefined;
       return (
         <StatTile
           label={widget.label}
           value={(source[widget.field] as number | string) ?? "—"}
           unit={widget.unit}
-          delta={
-            widget.deltaField !== undefined ? Number(source[widget.deltaField]) || 0 : undefined
-          }
+          delta={trustworthyDelta(rawDelta)}
+          deltaLabel={widget.deltaLabel}
           trend={Array.isArray(trend) ? (trend as number[]) : undefined}
           icon={widget.icon}
           lowerIsBetter={widget.lowerIsBetter}
@@ -187,10 +199,11 @@ function WidgetView({
               endpoint={widget.endpoint}
               rows={asRows(payload)}
               columns={widget.columns}
+              title={widget.title}
               onMutate={onMutate}
             />
           ) : (
-            <DataTable rows={asRows(payload)} columns={widget.columns} />
+            <DataTable rows={asRows(payload)} columns={widget.columns} title={widget.title} />
           )}
         </Card>
       );
@@ -292,6 +305,20 @@ function arrange(spec: DashboardSpec, node: (w: Widget) => ReactNode) {
   );
 }
 
+/** Where the numbers come from: people trust what they can trace. */
+function SourceNote({ source }: { source: NonNullable<DashboardSpec["source"]> }) {
+  const n = (value: number) => value.toLocaleString();
+  const sampled = source.fileRows > source.rows;
+  return (
+    <div className="shell-source">
+      Data: {source.filename} ·{" "}
+      {sampled
+        ? `${n(source.rows)} of ${n(source.fileRows)} rows, sampled evenly`
+        : `${n(source.rows)} rows`}
+    </div>
+  );
+}
+
 export function Dashboard({ spec }: { spec: DashboardSpec }) {
   const [filters, setFilters] = useState<Record<string, string>>({});
   // Bumped by editable tables after a successful mutation; every endpoint then
@@ -344,6 +371,7 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
         <div>
           <h1 className="shell-title">{spec.title}</h1>
           {spec.subtitle ? <div className="shell-sub">{spec.subtitle}</div> : null}
+          {spec.source ? <SourceNote source={spec.source} /> : null}
         </div>
         <span className="shell-spacer" />
         <ThemeSwitcher initialTheme={spec.theme} />

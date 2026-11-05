@@ -248,6 +248,9 @@ def _font_candidates() -> tuple[tuple[systems.FontPairing, ...], _BM25]:
         for p in systems.pairings()
         if _BUSINESS_FONTS.search(f"{p.best_for} {p.keywords}")
         and not _NOT_RECOMMENDED_FONTS.search(p.name)
+        # Code fonts for headings read as a terminal, not a business report
+        # (seen live: "Fira Code" titles on a quality dashboard).
+        and not systems.is_code_font(p)
     )
     return eligible, _BM25([f"{p.name} {p.keywords} {p.best_for}" for p in eligible])
 

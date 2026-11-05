@@ -72,12 +72,44 @@ def test_xlsx_with_real_dates_and_numbers():
     assert dataset.rows[1] == {"day": "2026-02-02", "visits": 98, "rate": 0.5}
 
 
-def test_rows_past_the_cap_are_dropped_and_reported():
-    body = "".join(f"{i}\n" for i in range(s.MAX_ROWS + 25))
+def test_rows_past_the_cap_are_sampled_evenly_and_reported():
+    body = "".join(f"{i}\n" for i in range(s.MAX_ROWS * 3))
     dataset = s.parse("big.csv", f"n\n{body}".encode())
     assert len(dataset.rows) == s.MAX_ROWS
-    assert dataset.truncated and dataset.row_count == s.MAX_ROWS + 25
-    assert "first 5000" in dataset.notes[0]
+    assert dataset.truncated and dataset.row_count == s.MAX_ROWS * 3
+    assert "sampled evenly" in dataset.notes[0]
+    # Spread over the whole file, in order: not just its head.
+    values = [row["n"] for row in dataset.rows]
+    assert values[0] == 0 and values[-1] >= s.MAX_ROWS * 3 - 3
+    assert values == sorted(values)
+
+
+def test_a_sorted_file_keeps_its_true_rate():
+    """Seen with a real HR export sorted leavers-first: taking the head of the
+    file showed 40% attrition against a true 23.8%."""
+    total, leavers = 15_000, 3_570
+    body = "".join(f"{1 if i < leavers else 0}\n" for i in range(total))
+    dataset = s.parse("hr.csv", f"left\n{body}".encode())
+    rate = sum(row["left"] for row in dataset.rows) / len(dataset.rows)
+    assert abs(rate - leavers / total) < 0.005
+
+
+@pytest.mark.parametrize(
+    ("header", "label", "key"),
+    [
+        ("satisfaction_level", "Satisfaction level", "satisfaction_level"),
+        ("average-montly-hours", "Average montly hours", "average_montly_hours"),
+        ("LIMIT_BAL", "Limit bal", "limit_bal"),
+        ("Work_accident", "Work accident", "work_accident"),
+        ("left", "Left", "left"),
+        ("Revenue (EUR)", "Revenue (EUR)", "revenue_eur"),
+        ("Order Date", "Order Date", "order_date"),
+        ("PST045214", "PST045214", "pst045214"),
+    ],
+)
+def test_code_style_headers_get_readable_labels(header: str, label: str, key: str):
+    dataset = s.parse("x.csv", f"{header}\n1\n".encode())
+    assert (dataset.columns[0].label, dataset.columns[0].key) == (label, key)
 
 
 # Built lazily and given short ids: pytest puts parameters in an environment

@@ -118,8 +118,13 @@ class DeepSeekClient:
                 raise LLMError(
                     "The openai package is required for LLM agents; install it with pip."
                 ) from exc
+            # One retry, not the SDK's two: at a 300s timeout, three attempts
+            # would leave a user watching a stuck step for fifteen minutes.
             self._client = AsyncOpenAI(
-                api_key=self.api_key, base_url=self.base_url, timeout=self.timeout_seconds
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=self.timeout_seconds,
+                max_retries=1,
             )
 
     async def complete(self, system: str, user: str) -> str:
@@ -591,7 +596,10 @@ _ARCHITECT_SYSTEM = (
     "categories is a donut; measures against a target or quota are progress; "
     "the top entries by one value (best products, slowest sites) are a "
     "ranking. Never two measures of different scale in one chart — use two "
-    "charts. Prefer variety: a dashboard of only lines and tables looks "
+    "charts. A stat's deltaField is the change between the last two COMPLETE "
+    "periods of a date column — give it only when the data has dates, and set "
+    '"deltaLabel" to name the comparison, e.g. "vs last month"; without dates '
+    "a stat has no deltaField. Prefer variety: a dashboard of only lines and tables looks "
     "unfinished. Donut, progress and ranking sit beside a chart, a third of the "
     "width.\n"
     f"Stat icons: one of {', '.join(ICONS)}.\n"
@@ -710,7 +718,14 @@ _DEVELOPER_SYSTEM = (
     "'data', 'dataset.json') and compute every endpoint from those rows; "
     "do not seed invented sample data. Values may be null; skip them in "
     "aggregates. Dates are ISO strings. An editable table seeds its SQLite "
-    "table from these rows on first start.\n"
+    "table from these rows on first start, keeping EVERY column, and its GET "
+    "returns every column of each row (not only those shown), because users "
+    "download the table as CSV.\n"
+    "Periods: a delta is the percentage change between the last two COMPLETE "
+    "periods (month, week) — a period is complete only if the data reaches its "
+    "end. Leave the latest period out of lines and sparklines when it is "
+    "incomplete; a half month plotted as a drop misleads. With no previous "
+    "period, return null for the delta, never 0 or an invented number.\n"
     "Never write any frontend file — no CSS, no components, no "
     "index.html. The whole frontend is platform-owned and any "
     "frontend path is rejected.\n"
@@ -844,6 +859,16 @@ class LlmDeveloperAgent(DeveloperAgent):
                 "style": system.style,
             },
         }
+        # Where the numbers come from, shown under the title. From the
+        # platform's own record of the upload, never from the model.
+        dataset = requirements.get("dataset")
+        if isinstance(dataset, dict) and dataset.get("filename"):
+            rows = int(dataset.get("rowCount") or 0)
+            spec["source"] = {
+                "filename": dataset["filename"],
+                "rows": rows,
+                "fileRows": int(dataset.get("fileRowCount") or rows),
+            }
         ws.write_file(
             project_id,
             DASHBOARD_SPEC_PATH,

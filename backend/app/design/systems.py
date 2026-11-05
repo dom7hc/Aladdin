@@ -307,8 +307,21 @@ def choices_for_prompt() -> str:
     return "\n".join(f"- {p.id}: {p.product_type}" for p in palettes())
 
 
+def is_code_font(pairing: FontPairing) -> bool:
+    """Headings in a monospace or code face (Fira Code, Share Tech Mono)."""
+    return bool(re.search(r"mono|code", pairing.heading, re.IGNORECASE))
+
+
 def pairing_choices_for_prompt() -> str:
-    return "\n".join(f"- {p.id}: {p.name} — {p.best_for[:70]}" for p in pairings())
+    """Every pairing except code-font headings.
+
+    Left out on purpose: offered "Dashboard Data", the architect picked its
+    Fira Code headings for a quality manager's dashboard, which then read like
+    a terminal. resolve() still accepts those ids if a stored spec names one.
+    """
+    return "\n".join(
+        f"- {p.id}: {p.name} — {p.best_for[:70]}" for p in pairings() if not is_code_font(p)
+    )
 
 
 def design_css(system: DesignSystem) -> str:
