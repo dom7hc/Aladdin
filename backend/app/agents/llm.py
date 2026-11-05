@@ -610,6 +610,11 @@ _ARCHITECT_SYSTEM = (
     "invent metrics the data cannot produce. When a date column spans more "
     "than about two months, trend it by week or month, not by day — say so "
     "in the endpoint and title, e.g. /api/sales/revenue-by-month.\n"
+    "Write every title and label in the reader's business words: never a "
+    'column=value expression like "Leavers (left = 1)" or "Left = 0", and say '
+    'what a 0-1 score means ("Satisfaction (0-1)"). Every series in one chart '
+    "shares one unit and scale: a 0-1 average and a percentage rate never "
+    "share a chart.\n"
     'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>, '
     '"style": <id>}. The input carries a "designBrief": ui-ux-pro-max\'s '
     "design rules for the user's industry, with recommended styles, palettes "
@@ -721,6 +726,10 @@ _DEVELOPER_SYSTEM = (
     "table from these rows on first start, keeping EVERY column, and its GET "
     "returns every column of each row (not only those shown), because users "
     "download the table as CSV.\n"
+    "When the dataset's fileRowCount is larger than its rowCount, the rows are "
+    "an even sample of the file: multiply every count and sum by "
+    "fileRowCount / rowCount so totals describe the whole file; rates, shares "
+    "and averages need no scaling.\n"
     "Periods: a delta is the percentage change between the last two COMPLETE "
     "periods (month, week) — a period is complete only if the data reaches its "
     "end. Leave the latest period out of lines and sparklines when it is "

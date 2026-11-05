@@ -110,7 +110,8 @@ def test_stack_up_writes_env_and_succeeds(tmp_path: Path, monkeypatch):
     source = ws.source_dir(PROJECT_ID)
     builder.stack_up(source, PROJECT_ID, 8217)
     args = captured["args"]
-    assert "aladdin-poc-abcdef01" in args  # compose project name from id prefix
+    # The whole id: ObjectIds created in the same second share a prefix.
+    assert f"aladdin-poc-{PROJECT_ID}" in args
     assert any(arg.endswith(str(Path("deploy") / "compose.yml")) for arg in args)
     assert "POC_PORT=8217" in (source / "deploy" / ".preview.env").read_text()
 
@@ -320,3 +321,26 @@ async def test_reaper_stops_expired_previews_only(db, monkeypatch):
     assert await service.reap_expired() == 1
     assert (await service.get_state(stale))["status"] == "none"
     assert (await service.get_state(fresh))["status"] == "running"
+
+
+def test_projects_created_in_the_same_second_get_their_own_stack():
+    """Seen in production: ObjectIds from the same second share their first 8
+    characters, so two previews became one compose project and the first was
+    silently replaced while still reported as running."""
+    first, second = "6aec4716f220be86fd2cac7f", "6aec4716f220be86fd2cac80"
+    assert builder.project_name(first) != builder.project_name(second)
+
+
+def test_stack_down_also_stops_a_stack_under_the_old_short_name(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_run(args, timeout):
+        from subprocess import CompletedProcess
+
+        calls.append(args)
+        return CompletedProcess(args, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(builder, "_run", fake_run)
+    builder.stack_down(PROJECT_ID)
+    names = [args[args.index("-p") + 1] for args in calls]
+    assert names == [f"aladdin-poc-{PROJECT_ID}", f"aladdin-poc-{PROJECT_ID[:8]}"]
