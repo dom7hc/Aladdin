@@ -1,11 +1,12 @@
 # Vendored design data
 
-`colors.csv` and `typography.csv` come from **ui-ux-pro-max-skill**:
+`colors.csv`, `typography.csv`, `products.csv` and `ui-reasoning.csv` come from
+**ui-ux-pro-max-skill**:
 
 - Source: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
 - Path upstream: `src/ui-ux-pro-max/data/`
 - Licence: MIT — see `LICENSE` in this directory
-- Vendored: 2026-09-30
+- Vendored: 2026-09-30 (colours, typography); 2026-11-05 (products, reasoning)
 
 ## Why vendored rather than installed
 
@@ -41,3 +42,28 @@ Chosen for dashboards: active upstream, light and dark supported, and
 accessibility risk low or manageable. HUD and dimensional-layering styles were
 left out for their high accessibility risk, and landing-page styles because
 they are deprecated upstream.
+
+## Reasoning (products, ui-reasoning)
+
+`products.csv` and `ui-reasoning.csv` are the skill's reasoning engine: one row
+per product category (192, aligned with `colors.csv`) giving its dashboard
+style, style priority, colour and type mood, key effects and anti-patterns.
+`app/design/reasoning.py` runs the same lookup the skill's `design_system.py`
+does, on the server, and hands the architect a short brief in ids it can pick.
+
+Two deliberate departures from upstream:
+
+- **Matching.** Upstream ranks categories with BM25 over the whole catalogue,
+  which is mostly consumer apps and landing pages; on business briefs that
+  put attrition on "Sports Team/Club" and CSAT on "Autonomous Drone Fleet
+  Manager". We match against a short table of business domains (HR, sales,
+  finance, operations, ...) instead, each pointing at the upstream category
+  whose rule fits it, with "Analytics Dashboard" as the fallback.
+- **Decision rules** (`Decision_Rules`) are not applied. Across all 192 rows
+  only ten touch a style, and those mostly name styles we do not implement.
+
+`styles.csv`, `charts.csv` and the scripts are still not vendored: the ten
+looks are hand-implemented (see Looks above), and the chart guidance the architect needs
+is condensed into its prompt (donut for share of a whole, at most six slices;
+progress for performance against a target; never series told apart by hue
+alone).

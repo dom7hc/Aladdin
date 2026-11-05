@@ -174,7 +174,7 @@ class DesignSystem:
     style: str = "soft-ui-evolution"
 
 
-def _slug(text: str) -> str:
+def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.strip().lower()).strip("-")
 
 
@@ -208,7 +208,7 @@ def palettes() -> tuple[Palette, ...]:
         if not all(_HEX.match((v or "").strip()) for v in values.values()):
             continue
         palette = Palette(
-            id=_slug(product),
+            id=slug(product),
             product_type=product,
             **{k: v.strip() for k, v in values.items()},
         )
@@ -228,7 +228,7 @@ def pairings() -> tuple[FontPairing, ...]:
             continue
         loaded.append(
             FontPairing(
-                id=_slug(name),
+                id=slug(name),
                 name=name,
                 heading=heading,
                 body=body,

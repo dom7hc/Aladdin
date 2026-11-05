@@ -213,18 +213,18 @@ def _test_result_from_steps(steps: list[dict[str, Any]]) -> TestResult:
     failure = next((step for step in steps if step["status"] == "FAILED"), None)
     if failure is not None:
         result = failure.get("result") or {}
-        detail = (
-            result.get("stderr")
-            or result.get("stdout")
-            or failure.get("reason")
-            or "build/test step failed"
-        )
+        # Both streams, and their tail: pytest reports failures on stdout, and
+        # preferring stderr whenever it was non-empty made the summary — which
+        # the repair loop feeds back to the developer — a plugin's deprecation
+        # warning instead of the failed test (seen in CI, pytest-asyncio 1.x).
+        output = "\n".join(part for part in (result.get("stderr"), result.get("stdout")) if part)
+        detail = output[-2000:] if output else (failure.get("reason") or "build/test step failed")
         category = failure["category"]
         return TestResult(
             status="FAILED",
             category=category,
             files=[],
-            summary=detail[:2000],
+            summary=detail,
             suggested_fix=SUGGESTED_FIX_BY_STEP[category],
             commands=steps,
         )

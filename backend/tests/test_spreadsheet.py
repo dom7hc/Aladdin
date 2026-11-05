@@ -1,7 +1,7 @@
 """User uploads: the first untrusted input the platform accepts."""
 
 import io
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 import pytest
 from openpyxl import Workbook
@@ -63,7 +63,7 @@ def test_xlsx_with_real_dates_and_numbers():
         [
             ["Day", "Visits", "Rate"],
             # Excel stores no zone, so openpyxl hands back naive datetimes.
-            [datetime(2026, 2, 1), 120, 0.25],  # noqa: DTZ001
+            [datetime.combine(date(2026, 2, 1), time()), 120, 0.25],
             [date(2026, 2, 2), 98, 0.5],
         ]
     )

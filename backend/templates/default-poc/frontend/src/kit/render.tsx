@@ -1,16 +1,32 @@
 // Renders a DashboardSpec. This is the whole frontend of a generated PoC: the
 // generator supplies the spec and the backend endpoints, nothing more.
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import { BarChart, LineChart } from "./charts";
+import { BarChart, DonutChart, LineChart } from "./charts";
+import { Icon } from "./icons";
 import type { DashboardSpec, Widget } from "./types";
-import { Card, DataTable, EditableDataTable, FilterRail, StatTile, ThemeSwitcher } from "./widgets";
+import {
+  Card,
+  DataTable,
+  EditableDataTable,
+  FilterRail,
+  ProgressList,
+  RankingList,
+  Skeleton,
+  StatTile,
+  ThemeSwitcher,
+} from "./widgets";
 
 type Payload = Record<string, unknown> | Record<string, unknown>[];
 
-/** One fetch per distinct endpoint, shared by every widget that reads it. */
+/**
+ * One fetch per distinct endpoint, shared by every widget that reads it.
+ *
+ * Each endpoint succeeds or fails on its own: with Promise.all, a single 404
+ * blanked every widget on the page, including the ones whose data had loaded.
+ */
 function useEndpointData(
   endpoints: string[],
   filters: Record<string, string>,
@@ -18,7 +34,7 @@ function useEndpointData(
 ) {
   const key = `${endpoints.join("|")}::${JSON.stringify(filters)}::${refresh}`;
   const [data, setData] = useState<Record<string, Payload>>({});
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,25 +44,27 @@ function useEndpointData(
       Object.entries(filters).filter(([, v]) => v && v !== "All"),
     ).toString();
 
-    Promise.all(
+    Promise.allSettled(
       endpoints.map(async (endpoint) => {
         const url = query ? `${endpoint}?${query}` : endpoint;
         const response = await fetch(url);
         if (!response.ok) throw new Error(`${endpoint} returned ${response.status}`);
-        return [endpoint, (await response.json()) as Payload] as const;
+        return (await response.json()) as Payload;
       }),
-    )
-      .then((pairs) => {
-        if (cancelled) return;
-        setData(Object.fromEntries(pairs));
-        setError(null);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load data");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+    ).then((results) => {
+      if (cancelled) return;
+      const loaded: Record<string, Payload> = {};
+      const failed: Record<string, string> = {};
+      results.forEach((result, i) => {
+        if (result.status === "fulfilled") loaded[endpoints[i]] = result.value;
+        else
+          failed[endpoints[i]] =
+            result.reason instanceof Error ? result.reason.message : "Could not load data";
       });
+      setData(loaded);
+      setErrors(failed);
+      setLoading(false);
+    });
 
     return () => {
       cancelled = true;
@@ -54,7 +72,7 @@ function useEndpointData(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  return { data, error, loading };
+  return { data, errors, loading };
 }
 
 function asRows(payload: Payload | undefined): Record<string, unknown>[] {
@@ -77,12 +95,22 @@ function asObject(payload: Payload | undefined): Record<string, unknown> {
 function WidgetView({
   widget,
   payload,
+  error,
   onMutate,
 }: {
   widget: Widget;
   payload: Payload | undefined;
+  error?: string;
   onMutate: () => void;
 }) {
+  if (error) {
+    // Only this widget is affected; the rest of the dashboard still renders.
+    return (
+      <Card title={"title" in widget ? widget.title : widget.label}>
+        <p className="empty">Could not load this widget: {error}.</p>
+      </Card>
+    );
+  }
   switch (widget.kind) {
     case "stat": {
       const source = asObject(payload);
@@ -96,6 +124,8 @@ function WidgetView({
             widget.deltaField !== undefined ? Number(source[widget.deltaField]) || 0 : undefined
           }
           trend={Array.isArray(trend) ? (trend as number[]) : undefined}
+          icon={widget.icon}
+          lowerIsBetter={widget.lowerIsBetter}
         />
       );
     }
@@ -112,6 +142,40 @@ function WidgetView({
             rows={asRows(payload)}
             categoryField={widget.categoryField}
             series={widget.series}
+          />
+        </Card>
+      );
+    case "donut":
+      return (
+        <Card title={widget.title}>
+          <DonutChart
+            rows={asRows(payload)}
+            categoryField={widget.categoryField}
+            valueField={widget.valueField}
+            unit={widget.unit}
+          />
+        </Card>
+      );
+    case "progress":
+      return (
+        <Card title={widget.title}>
+          <ProgressList
+            rows={asRows(payload)}
+            labelField={widget.labelField}
+            valueField={widget.valueField}
+            targetField={widget.targetField}
+            unit={widget.unit}
+          />
+        </Card>
+      );
+    case "ranking":
+      return (
+        <Card title={widget.title}>
+          <RankingList
+            rows={asRows(payload)}
+            labelField={widget.labelField}
+            valueField={widget.valueField}
+            unit={widget.unit}
           />
         </Card>
       );
@@ -135,42 +199,97 @@ function WidgetView({
   }
 }
 
-/** Layouts differ only in how widgets are grouped into rows. */
+// Narrow widgets read well in a third of the width; wide ones need more.
+const NARROW = new Set<Widget["kind"]>(["donut", "progress", "ranking"]);
+
+/** One grid row with explicit column widths, stacking on small screens. */
+function Split({ cols, children }: { cols: string; children: ReactNode }) {
+  return (
+    <div className="row row-split" style={{ "--cols": cols } as CSSProperties}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Pairs widgets into rows so no card is stretched across a whole screen when
+ * it holds a donut or a short list: a chart next to a narrow widget gets two
+ * thirds, two charts share half each, narrow widgets sit three to a row.
+ * Tables always take the full width. Order follows the spec.
+ */
+function pairRows(widgets: Widget[], node: (w: Widget) => ReactNode): ReactNode[] {
+  const queue = [...widgets];
+  const rows: ReactNode[] = [];
+  const take = (pred: (w: Widget) => boolean) => {
+    const index = queue.findIndex(pred);
+    return index === -1 ? undefined : queue.splice(index, 1)[0];
+  };
+  while (queue.length) {
+    const first = queue.shift()!;
+    const key = rows.length;
+    if (first.kind === "table") {
+      rows.push(<div key={key}>{node(first)}</div>);
+    } else if (NARROW.has(first.kind)) {
+      // Narrow widgets group with each other first, from anywhere later in
+      // the spec: two lists side by side beat a list stretched across a screen.
+      const more: Widget[] = [first];
+      for (let next = take((w) => NARROW.has(w.kind)); next; ) {
+        more.push(next);
+        if (more.length === 3) break;
+        next = take((w) => NARROW.has(w.kind));
+      }
+      if (more.length === 1) {
+        // A lone narrow widget borrows the next chart as its partner.
+        const partner = take((w) => w.kind === "line" || w.kind === "bar");
+        if (partner) {
+          rows.push(
+            <Split key={key} cols="1fr 2fr">
+              {node(first)}
+              {node(partner)}
+            </Split>,
+          );
+          continue;
+        }
+      }
+      rows.push(
+        <Split key={key} cols={`repeat(${more.length}, 1fr)`}>
+          {more.map(node)}
+        </Split>,
+      );
+    } else {
+      const narrow = take((w) => NARROW.has(w.kind));
+      if (narrow) {
+        rows.push(
+          <Split key={key} cols="2fr 1fr">
+            {node(first)}
+            {node(narrow)}
+          </Split>,
+        );
+      } else if (queue[0] && (queue[0].kind === "line" || queue[0].kind === "bar")) {
+        rows.push(
+          <Split key={key} cols="1fr 1fr">
+            {node(first)}
+            {node(queue.shift()!)}
+          </Split>,
+        );
+      } else {
+        rows.push(<div key={key}>{node(first)}</div>);
+      }
+    }
+  }
+  return rows;
+}
+
+/** Headline numbers first, then everything else in paired rows. */
 function arrange(spec: DashboardSpec, node: (w: Widget) => ReactNode) {
   const stats = spec.widgets.filter((w) => w.kind === "stat");
   const rest = spec.widgets.filter((w) => w.kind !== "stat");
-
-  const statRow = stats.length ? <div className="row row-4">{stats.map(node)}</div> : null;
-
-  switch (spec.layout) {
-    case "analytics-breakdown": {
-      const plots = rest.filter((w) => w.kind === "line" || w.kind === "bar");
-      const others = rest.filter((w) => w.kind !== "line" && w.kind !== "bar");
-      return (
-        <>
-          {statRow}
-          {plots.length ? <div className="row row-2">{plots.map(node)}</div> : null}
-          {others.map(node)}
-        </>
-      );
-    }
-    case "records-workspace":
-      // The filter rail is rendered by the shell; tables stack full width.
-      return (
-        <>
-          {statRow}
-          {rest.map(node)}
-        </>
-      );
-    case "kpi-overview":
-    default:
-      return (
-        <>
-          {statRow}
-          {rest.map(node)}
-        </>
-      );
-  }
+  return (
+    <>
+      {stats.length ? <div className="row row-4">{stats.map(node)}</div> : null}
+      {pairRows(rest, node)}
+    </>
+  );
 }
 
 export function Dashboard({ spec }: { spec: DashboardSpec }) {
@@ -194,15 +313,23 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
     () => Array.from(new Set(spec.widgets.map((w) => w.endpoint))),
     [spec],
   );
-  const { data, error, loading } = useEndpointData(endpoints, filters, refresh);
+  const { data, errors, loading } = useEndpointData(endpoints, filters, refresh);
 
+  // Each widget sits in a cell carrying its position, which staggers the
+  // entrance animation in theme.css.
   const node = (widget: Widget) => (
-    <WidgetView
+    <div
+      className="cell"
       key={`${widget.kind}-${"title" in widget ? widget.title : widget.label}`}
-      widget={widget}
-      payload={data[widget.endpoint]}
-      onMutate={() => setRefresh((r) => r + 1)}
-    />
+      style={{ "--i": spec.widgets.indexOf(widget) } as CSSProperties}
+    >
+      <WidgetView
+        widget={widget}
+        payload={data[widget.endpoint]}
+        error={errors[widget.endpoint]}
+        onMutate={() => setRefresh((r) => r + 1)}
+      />
+    </div>
   );
 
   const body = arrange(spec, node);
@@ -211,8 +338,11 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
   return (
     <div className="shell">
       <header className="shell-header">
+        <span className="shell-mark">
+          <Icon name="dashboard" size={20} />
+        </span>
         <div>
-          <div className="shell-title">{spec.title}</div>
+          <h1 className="shell-title">{spec.title}</h1>
           {spec.subtitle ? <div className="shell-sub">{spec.subtitle}</div> : null}
         </div>
         <span className="shell-spacer" />
@@ -220,16 +350,9 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
       </header>
 
       <main className="shell-main">
-        {error ? (
-          <Card title="Could not load data">
-            <p className="empty">
-              {error}. The dashboard is running, but its API did not answer as expected.
-            </p>
-          </Card>
-        ) : null}
-        {loading && !Object.keys(data).length ? <p className="empty">Loading…</p> : null}
-
-        {hasRail ? (
+        {loading && !Object.keys(data).length && !Object.keys(errors).length ? (
+          <Skeleton />
+        ) : hasRail ? (
           <div className="row row-rail">
             <FilterRail
               filters={spec.filters ?? []}

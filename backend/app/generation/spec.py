@@ -26,11 +26,42 @@ REQUIRED_BY_KIND: dict[str, tuple[str, ...]] = {
     "stat": ("label", "field"),
     "line": ("title", "xField", "series"),
     "bar": ("title", "categoryField", "series"),
+    "donut": ("title", "categoryField", "valueField"),
+    "progress": ("title", "labelField", "valueField", "targetField"),
+    "ranking": ("title", "labelField", "valueField"),
     "table": ("title", "columns"),
 }
 
 # A dashboard with no way to show a number is not a dashboard.
-_VISUAL_KINDS = {"stat", "line", "bar", "table"}
+_VISUAL_KINDS = set(REQUIRED_BY_KIND)
+
+# Stat tile icons, in step with the template's kit/icons.tsx. Not validated:
+# the kit guesses one from the label when the name is unknown, which beats
+# failing a generation over an icon.
+ICONS = (
+    "users",
+    "money",
+    "cart",
+    "package",
+    "trend",
+    "clock",
+    "calendar",
+    "check",
+    "alert",
+    "activity",
+    "target",
+    "bolt",
+    "star",
+    "truck",
+    "building",
+    "heart",
+    "globe",
+    "percent",
+    "file",
+    "chart",
+    "gauge",
+    "thermometer",
+)
 
 MAX_WIDGETS = 10
 # The series palette has eight slots and is never cycled.

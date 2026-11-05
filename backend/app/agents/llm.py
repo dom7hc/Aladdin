@@ -34,9 +34,11 @@ from app.agents.base import (
 )
 from app.agents.stubs import AUTOFILL_DEFAULTS, QUESTION_PER_FIELD, StubRequirementAgent
 from app.catalogue import prompt_guidance
+from app.design import reasoning
 from app.design import systems as design
 from app.generation import runner
 from app.generation.spec import (
+    ICONS,
     LAYOUTS,
     MAX_SERIES,
     MAX_WIDGETS,
@@ -564,18 +566,33 @@ _ARCHITECT_SYSTEM = (
     "numbers over time, analytics-breakdown to compare a trend against "
     "categories, records-workspace for browsing and filtering records.\n"
     'Every widget has "kind" and "endpoint" (a path under /api/). The only '
-    'kinds are "stat", "line", "bar" and "table". By kind: '
-    '"stat" needs label and field, plus optional deltaField and trendField; '
+    'kinds are "stat", "line", "bar", "donut", "progress", "ranking" and '
+    '"table". By kind: '
+    '"stat" needs label and field, plus optional deltaField, trendField, unit, '
+    'icon and "lowerIsBetter": true for measures where a rise is bad news '
+    "(attrition, defects, cost); "
     '"line" needs title, xField and series[{label, field}]; "bar" needs title, '
-    'categoryField and series[{label, field}]; "table" needs title and '
+    'categoryField and series[{label, field}]; "donut" needs title, '
+    'categoryField and valueField (optional unit); "progress" needs title, '
+    'labelField, valueField and targetField (optional unit); "ranking" needs '
+    'title, labelField and valueField (optional unit); "table" needs title and '
     "columns[{label, field}]; a table whose rows users should create, edit and "
     'delete also takes "editable": true — then its first column must be '
     '{"label": "ID", "field": "id"}. Status or health-pill widgets are not '
-    "supported — express that data as a stat or a table instead.\n"
+    "supported — express that data as a stat or a table instead; a table "
+    "column named status, stage or priority is shown as a coloured chip.\n"
     f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
-    "the form by the data's job: a single headline number is a stat, change "
-    "over time is a line, comparison across categories is a bar. Never two "
-    "measures of different scale in one chart — use two charts.\n"
+    "the form by the data's job: a single headline number is a stat (aim for "
+    "three or four, each with a trend and a change when the data allows); "
+    "change over time is a line, never with fewer than four points; comparison "
+    "across categories is a bar; share of a whole across at most six "
+    "categories is a donut; measures against a target or quota are progress; "
+    "the top entries by one value (best products, slowest sites) are a "
+    "ranking. Never two measures of different scale in one chart — use two "
+    "charts. Prefer variety: a dashboard of only lines and tables looks "
+    "unfinished. Donut, progress and ranking sit beside a chart, a third of the "
+    "width.\n"
+    f"Stat icons: one of {', '.join(ICONS)}.\n"
     "If the requirements include a 'dataset', it is the user's own file and "
     "the dashboard is about it: every field a widget reads must be one of its "
     "column keys or an aggregate of them (a count, sum or average, grouped by "
@@ -584,11 +601,15 @@ _ARCHITECT_SYSTEM = (
     "than about two months, trend it by week or month, not by day — say so "
     "in the endpoint and title, e.g. /api/sales/revenue-by-month.\n"
     'Also choose the look: "designSystem": {"palette": <id>, "fonts": <id>, '
-    '"style": <id>}. Pick the palette whose industry is closest to the '
-    "user's, a font pairing whose audience matches, and the style that suits "
-    "who reads the dashboard and how much data it shows. Omit any you cannot "
-    "match — a default is used. Chart colours are not yours to choose; they "
-    "are fixed.\n"
+    '"style": <id>}. The input carries a "designBrief": ui-ux-pro-max\'s '
+    "design rules for the user's industry, with recommended styles, palettes "
+    "and fonts. Start from its recommendations and depart only for a reason "
+    "the requirements give (a data-heavy brief may want data-dense-dashboard, "
+    "an executive audience executive-dashboard). Honour its 'avoid' list. "
+    "Otherwise pick the palette whose industry is closest to the user's, a "
+    "font pairing whose audience matches, and the style that suits who reads "
+    "the dashboard and how much data it shows. Chart colours are not yours to "
+    "choose; they are fixed.\n"
     f"Palettes:\n{design.choices_for_prompt()}\n"
     f"Font pairings:\n{design.pairing_choices_for_prompt()}\n"
     f"Styles:\n{design.style_choices_for_prompt()}"
@@ -600,13 +621,23 @@ class LlmArchitectAgent(ArchitectAgent):
         self.client = client or DeepSeekClient()
 
     async def run(self, requirements: dict[str, Any]) -> dict[str, Any]:
+        # ui-ux-pro-max's reasoning, run here rather than by the model: a few
+        # hundred tokens of rules for this industry instead of the whole menu.
+        brief = reasoning.brief_for(requirements)
+        logger.info("Design brief: %s", brief.category or "no industry matched")
         payload = await _ask_for_json(
             self.client,
             _ARCHITECT_SYSTEM,
-            json.dumps(requirements, ensure_ascii=False),
+            json.dumps(
+                {**requirements, "designBrief": brief.for_prompt()},
+                ensure_ascii=False,
+            ),
             validate=validate_spec,
             error_prefix="LLM dashboard spec is invalid: ",
         )
+        # An omitted or invented id takes the brief's first pick, which suits
+        # the industry, rather than the platform-wide default, which suits no one.
+        payload["designSystem"] = reasoning.fill_design_system(payload.get("designSystem"), brief)
         # Filters are optional; a malformed one is dropped rather than failing
         # the run, since the dashboard is complete without it.
         dropped = prune_filters(payload)
@@ -654,9 +685,10 @@ _DEVELOPER_SYSTEM = (
     "uvicorn[standard].\n"
     "Endpoint payload shapes: a 'stat' endpoint returns one object "
     "with its field, deltaField and trendField (trend is an array of "
-    "numbers); 'line', 'bar' and 'table' endpoints return "
-    "an ARRAY of objects whose keys are exactly the fields the widget "
-    "names. Seed 6-12 rows of realistic sample data in code so the "
+    "numbers); 'line', 'bar', 'donut', 'progress', 'ranking' and 'table' "
+    "endpoints return an ARRAY of objects whose keys are exactly the fields "
+    "the widget names (a progress row carries its value and its target). "
+    "Seed 6-12 rows of realistic sample data in code so the "
     "dashboard is populated on first load with no database.\n"
     'A table with "editable": true is user-writable: implement '
     "POST <endpoint> (create a row from the JSON body), PUT "

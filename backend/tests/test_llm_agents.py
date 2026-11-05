@@ -248,9 +248,35 @@ VALID_SPEC = {
 }
 
 
+def _without_look(spec: dict) -> dict:
+    """The spec as the model wrote it: the architect adds the look itself."""
+    return {k: v for k, v in spec.items() if k != "designSystem"}
+
+
 async def test_architect_agent_returns_a_valid_dashboard_spec():
     agent = LlmArchitectAgent(DeepSeekClient(client=FakeClient(json.dumps(VALID_SPEC))))
-    assert await agent.run(empty_requirements("x")) == VALID_SPEC
+    spec = await agent.run(empty_requirements("x"))
+    # The model chose no look, so the design brief's first picks fill it in.
+    design_system = spec.pop("designSystem")
+    assert spec == VALID_SPEC
+    assert set(design_system) == {"palette", "fonts", "style"}
+
+
+async def test_architect_sends_the_design_brief_and_fills_the_look_from_it():
+    """ui-ux-pro-max's rules for the industry reach the model, and an invented
+    id is replaced by the brief's pick rather than the platform default."""
+    client = FakeClient(
+        json.dumps({**VALID_SPEC, "designSystem": {"palette": "neon", "style": "flat-design"}})
+    )
+    agent = LlmArchitectAgent(DeepSeekClient(client=client))
+    requirements = {**empty_requirements("x"), "problem": "Attrition and headcount by team"}
+    spec = await agent.run(requirements)
+
+    sent = json.loads(client.chat.completions.calls[0]["messages"][1]["content"])
+    assert sent["designBrief"]["category"] == "Job Board/Recruitment"
+    assert sent["designBrief"]["avoid"]
+    assert spec["designSystem"]["style"] == "flat-design"
+    assert spec["designSystem"]["palette"] == "job-board-recruitment"
 
 
 async def test_architect_agent_rejects_a_non_dashboard_spec():
@@ -278,7 +304,7 @@ async def test_architect_reasks_once_on_invalid_json():
         '{"title": "Orders", "layout": "kpi-overview", "widgets": [', json.dumps(VALID_SPEC)
     )
     spec = await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
-    assert spec == VALID_SPEC
+    assert _without_look(spec) == VALID_SPEC
     assert len(client.chat.completions.calls) == 2
     retry = client.chat.completions.calls[1]["messages"][1]["content"]
     assert "not valid JSON" in retry
@@ -288,7 +314,7 @@ async def test_architect_reasks_once_on_an_invalid_spec():
     bad = {**VALID_SPEC, "widgets": [{"kind": "stat", "label": "x"}]}  # endpoint+field missing
     client = FakeClient(json.dumps(bad), json.dumps(VALID_SPEC))
     spec = await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
-    assert spec == VALID_SPEC
+    assert _without_look(spec) == VALID_SPEC
     assert len(client.chat.completions.calls) == 2
     retry = client.chat.completions.calls[1]["messages"][1]["content"]
     assert "'endpoint'" in retry  # the problem is named to the model
@@ -584,7 +610,7 @@ async def test_fallback_client_uses_secondary_when_primary_fails():
 
 async def test_architect_designs_with_claude():
     agent = LlmArchitectAgent(_claude(_claude_response(json.dumps(VALID_SPEC))))
-    assert await agent.run(empty_requirements("x")) == VALID_SPEC
+    assert _without_look(await agent.run(empty_requirements("x"))) == VALID_SPEC
 
 
 async def test_requirement_agent_never_claims_complete_while_blocked():

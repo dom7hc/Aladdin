@@ -1,5 +1,7 @@
 """Dashboard spec validation â€” the gate between the model and the renderer."""
 
+from pathlib import Path
+
 from app.generation.spec import LAYOUTS, THEMES, prune_filters, spec_endpoints, validate_spec
 
 GOOD = {
@@ -214,3 +216,68 @@ def test_prompts_teach_the_editable_table_contract():
     assert '"field": "id"' in _ARCHITECT_SYSTEM
     for token in ("POST <endpoint>", "PUT <endpoint>/{id}", "DELETE <endpoint>/{id}", "SQLite"):
         assert token in _DEVELOPER_SYSTEM, f"developer prompt lost: {token}"
+
+
+NEW_KINDS = [
+    {
+        "kind": "donut",
+        "endpoint": "/api/share",
+        "title": "Revenue by channel",
+        "categoryField": "channel",
+        "valueField": "revenue",
+    },
+    {
+        "kind": "progress",
+        "endpoint": "/api/targets",
+        "title": "Regions against target",
+        "labelField": "region",
+        "valueField": "actual",
+        "targetField": "target",
+    },
+    {
+        "kind": "ranking",
+        "endpoint": "/api/top",
+        "title": "Top products",
+        "labelField": "product",
+        "valueField": "units",
+    },
+]
+
+
+def test_donut_progress_and_ranking_widgets_validate():
+    spec = {**GOOD, "widgets": [*GOOD["widgets"][:2], *NEW_KINDS]}
+    assert validate_spec(spec) == []
+
+
+def test_new_kinds_name_their_missing_fields():
+    for widget in NEW_KINDS:
+        broken = {k: v for k, v in widget.items() if k not in ("valueField",)}
+        errors = validate_spec({**GOOD, "widgets": [broken]})
+        assert any("valueField" in e for e in errors), widget["kind"]
+
+
+def test_an_unknown_icon_is_not_fatal():
+    """The kit guesses an icon from the label; a generation never fails over one."""
+    stat = {**GOOD["widgets"][0], "icon": "unicorn"}
+    assert validate_spec({**GOOD, "widgets": [stat]}) == []
+
+
+def test_kit_types_and_icons_match_the_validator():
+    """Guards against spec.py and the template kit drifting apart."""
+    import re
+
+    from app.config import TEMPLATES_DIR
+    from app.generation.spec import ICONS, REQUIRED_BY_KIND
+
+    kit = Path(TEMPLATES_DIR) / "default-poc" / "frontend" / "src" / "kit"
+    types = (kit / "types.ts").read_text(encoding="utf-8")
+    declared = set(re.findall(r'kind:\s*"([a-z]+)"', types))
+    assert declared == set(REQUIRED_BY_KIND)
+
+    render = (kit / "render.tsx").read_text(encoding="utf-8")
+    for kind in REQUIRED_BY_KIND:
+        assert f'case "{kind}"' in render, f"render.tsx never draws {kind}"
+
+    icons = (kit / "icons.tsx").read_text(encoding="utf-8")
+    for name in ICONS:
+        assert re.search(rf"^  {name}: ", icons, re.MULTILINE), f"icons.tsx lacks {name}"

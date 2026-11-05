@@ -209,3 +209,23 @@ def test_pipeline_test_result_artifact_includes_command_reports(client, project_
     assert steps["compile"] == "PASSED"
     assert steps["pipInstall"] == "SKIPPED"
     assert steps["npmBuild"] == "SKIPPED"
+
+
+def test_failure_summary_keeps_pytest_result_despite_stderr_warnings():
+    """Seen in CI: a newer pytest-asyncio printed a deprecation warning on
+    stderr, and the summary (fed back to the developer for repair) became the
+    warning instead of the failed test that pytest reports on stdout."""
+    from app.agents.stubs import _test_result_from_steps
+
+    steps = [
+        {
+            "step": "pytest",
+            "status": "FAILED",
+            "category": "TEST_FAILURE",
+            "result": {
+                "stderr": "PytestDeprecationWarning: asyncio_default_fixture_loop_scope is unset",
+                "stdout": "F\n1 failed in 0.02s",
+            },
+        }
+    ]
+    assert "1 failed" in _test_result_from_steps(steps).summary

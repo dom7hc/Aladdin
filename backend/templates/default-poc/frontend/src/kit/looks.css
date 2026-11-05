@@ -30,7 +30,14 @@
   --card-shadow: none;
 }
 :root[data-look="minimalism-and-swiss-style"] .shell-header {
+  background: var(--surface-0);
+  box-shadow: none;
   border-bottom: 2px solid var(--ink-1);
+}
+/* Swiss and flat styles want no decoration: no glow behind the tiles. */
+:root[data-look="minimalism-and-swiss-style"] .tile,
+:root[data-look="flat-design"] .tile {
+  background-image: none;
 }
 :root[data-look="minimalism-and-swiss-style"] .card-title {
   font-weight: 700;
@@ -71,6 +78,14 @@
 }
 :root[data-look="data-dense-dashboard"] .card-head {
   margin-bottom: 8px;
+}
+:root[data-look="data-dense-dashboard"] .tile-icon {
+  width: 28px;
+  height: 28px;
+}
+:root[data-look="data-dense-dashboard"] .shell-header {
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 :root[data-look="data-dense-dashboard"] thead th,
 :root[data-look="data-dense-dashboard"] tbody td {
