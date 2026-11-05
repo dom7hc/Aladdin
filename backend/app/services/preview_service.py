@@ -27,6 +27,15 @@ EVICTED_MESSAGE = (
 )
 
 
+# Picking a slot and recording it must happen as one step. The slot used to
+# be recorded only when the build finished, minutes later, and its port is not
+# bound until then either, so two previews started together were both given
+# slot 1 (seen in production: "Bind for 127.0.0.1:8201 failed: port is already
+# allocated"). One backend process serves the API, so an in-process lock is
+# enough.
+_SLOT_LOCK = asyncio.Lock()
+
+
 class PreviewNotReadyError(Exception):
     """The project cannot start a preview right now."""
 
@@ -120,10 +129,16 @@ class PreviewService:
     async def run_build(self, project_id: str) -> None:
         """Background task: build, start and health-check the preview stack."""
         try:
-            # Another build may have taken the freed slot while this one waited.
-            await self._make_room(exclude=project_id)
-            occupied = await self._occupied_slots()
-            slot = await builder.build_and_start(project_id, occupied)
+            async with _SLOT_LOCK:
+                # Another build may have taken the freed slot while this one waited.
+                await self._make_room(exclude=project_id)
+                occupied = await self._occupied_slots()
+                slot = await asyncio.to_thread(builder.pick_slot, occupied)
+                # Reserved now, while building: _occupied_slots counts it.
+                await self._save_state(
+                    project_id, status="building", slot=slot, message="Building the preview"
+                )
+            slot = await builder.build_and_start(project_id, slot)
         except (builder.PreviewError, OSError) as exc:
             logger.warning("Preview build failed for %s: %s", project_id, exc)
             await self._save_state(project_id, status="failed", message=str(exc)[:1500])

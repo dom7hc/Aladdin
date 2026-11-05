@@ -229,8 +229,8 @@ def _tail(text: str, limit: int = 1_500) -> str:
     return text if len(text) <= limit else "... [truncated]\n" + text[-limit:]
 
 
-async def build_and_start(project_id: str, occupied: set[int] | None = None) -> int:
-    """Async orchestration used by the preview service. Returns the slot."""
+async def build_and_start(project_id: str, slot: int) -> int:
+    """Build and start on a slot the preview service reserved. Returns the slot."""
     if not await asyncio.to_thread(docker_available):
         raise PreviewError(
             "Docker is not available to this backend; preview requires a mounted Docker socket"
@@ -240,7 +240,6 @@ async def build_and_start(project_id: str, occupied: set[int] | None = None) -> 
     source_dir = Path(ws.source_dir(project_id))
     if not (source_dir / "backend" / "main.py").is_file():
         raise PreviewError("Generated workspace is empty; run generate first")
-    slot = await asyncio.to_thread(pick_slot, occupied)
     port = slot_port(slot)
     await asyncio.to_thread(stack_up, source_dir, project_id, port)
     healthy = await asyncio.to_thread(wait_healthy, project_id)
