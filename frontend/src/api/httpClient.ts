@@ -8,6 +8,7 @@ export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   signal?: AbortSignal
+  headers?: Record<string, string>
 }
 
 function delay(ms: number): Promise<void> {
@@ -31,7 +32,12 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
   if (env.useMock) {
     await delay(env.mockLatencyMs)
     try {
-      return handleMockRequest({ method, path, body: options.body }) as T
+      return handleMockRequest({
+        method,
+        path,
+        body: options.body,
+        headers: options.headers,
+      }) as T
     } catch (error) {
       if (error instanceof ApiError) throw error
       throw new ApiError(500, (error as Error).message)
@@ -40,7 +46,10 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   const response = await fetch(`${env.apiBaseUrl}${path}`, {
     method,
-    headers: options.body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
     body: options.body ? JSON.stringify(options.body) : undefined,
     signal: options.signal,
   })

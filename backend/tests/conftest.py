@@ -38,3 +38,13 @@ def answer_all_questions(client: TestClient, project_id: str) -> None:
     body = response.json()
     assert body["ready"] is True
     assert body["missingFields"] == []
+
+
+@pytest.fixture(autouse=True)
+def _built_in_catalogue():
+    """The live business-case set is module state; edits in one test must not
+    leak into the next."""
+    from app import catalogue
+
+    yield
+    catalogue.set_current(catalogue.SCENARIOS)

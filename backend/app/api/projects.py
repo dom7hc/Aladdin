@@ -29,8 +29,8 @@ from app.agents.stubs import (
     StubReviewerAgent,
     StubTesterAgent,
 )
-from app.catalogue import as_public_list
 from app.ingest import pdf, spreadsheet
+from app.repositories.content_repository import ContentRepository, to_response
 from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.project_repository import ProjectNotFoundError
 from app.schemas.project import (
@@ -82,13 +82,17 @@ def get_generation_service(
 
 
 @router.get("/scenarios")
-async def scenarios() -> list[dict[str, object]]:
+async def scenarios(
+    db: Annotated[AsyncIOMotorDatabase, Depends(get_db)],
+) -> list[dict[str, object]]:
     """Dashboards we build well, offered as starting points.
 
+    Kept for existing clients; the editable source is /api/content/scenarios.
     Declared before the "/{project_id}" routes so "scenarios" is not captured
     as a project id.
     """
-    return as_public_list()
+    docs = await ContentRepository(db).list_scenarios()
+    return [to_response(doc) for doc in docs]
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)

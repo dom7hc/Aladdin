@@ -102,3 +102,8 @@ CORS_ORIGINS = [
     )
     if origin.strip()
 ]
+
+# Shared key for editing site content (business cases, home page texts). The
+# site has no user accounts, and without a key anyone on the public URL could
+# rewrite the home page. Unset, editing is refused rather than left open.
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")

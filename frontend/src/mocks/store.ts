@@ -2,8 +2,10 @@ import type {
   Artifact,
   ChatMessage,
   DatasetInfo,
+  HomeContent,
   Project,
   RequirementData,
+  Scenario,
 } from '@/types'
 
 export interface GenerationState {
@@ -23,6 +25,10 @@ export interface MockState {
   generation: Record<string, GenerationState>
   previewBuilds: Record<string, PreviewBuildState>
   datasets: Record<string, DatasetInfo>
+  /** Business cases; absent until first read, then seeded (mocks/content.ts). */
+  scenarios?: Scenario[]
+  /** Home page texts that differ from the defaults. */
+  home?: Partial<HomeContent>
 }
 
 const STORAGE_KEY = 'aladdin.mock.state.v1'

@@ -79,6 +79,11 @@ for env_name in development production; do
   umask 077
   printf '%s' "$ALADDIN_ENV_B64" | base64 -d >"$dir/runtime.env.new"
   echo "DOCKER_GID=$gid" >>"$dir/runtime.env.new"
+  # The content editor's key is created on the VM, not in Terraform: keep the
+  # current one so editors' saved keys keep working, or make one the first time.
+  admin_key="$(grep -s '^ADMIN_KEY=' "$dir/runtime.env" | cut -d= -f2- || true)"
+  [ -n "$admin_key" ] || admin_key="$(openssl rand -hex 16)"
+  echo "ADMIN_KEY=$admin_key" >>"$dir/runtime.env.new"
   # Never replace a working file with one that would fail every deploy.
   if ! grep -q '^MONGODB_URI=mongodb' "$dir/runtime.env.new"; then
     rm -f "$dir/runtime.env.new"

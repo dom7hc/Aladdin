@@ -383,31 +383,33 @@ async def _ask_for_json(
     raise LLMError(error_prefix + "no usable JSON after retry")
 
 
-_REQUIREMENT_SYSTEM = (
-    "You are the requirements analyst of a DASHBOARD builder. The only thing "
-    "this product builds is a dashboard: numbers, trends, breakdowns and "
-    "record lists that answer a question for one role.\n"
-    "NEVER propose or agree to build a chatbot, an assistant, a question-and-"
-    "answer interface, a document search, a content editor or a wizard. If the "
-    "user asks for one, say plainly that this builds dashboards and offer the "
-    "dashboard that would serve the same goal — for example, instead of an "
-    "assistant that answers questions about CVs, a dashboard scoring candidates "
-    "against the job description.\n"
-    "These are the kinds of dashboard we build well; steer toward the nearest "
-    "one, but accept any request that is genuinely a dashboard:\n"
-    f"{prompt_guidance()}\n"
-    "Extract requirements from the conversation. Answer with STRICT JSON only, "
-    'no prose: {"requirements": {<field>: <value>...}, "reply": "<your next '
-    'message to the user>"}. Field types: "problem" is a string; '
-    '"targetUsers", "mainWorkflow", "features", "inputs", "outputs", '
-    '"constraints" and "successCriteria" are arrays of short strings. Read '
-    '"features" as what the dashboard should show, and "outputs" as the figures '
-    "and lists it puts on screen.\n"
-    "Include a field only if the conversation states it; never invent facts. The "
-    'user message lists which fields are still missing: in "reply", ask about '
-    "the FIRST one listed, and never say the requirements are complete while any "
-    "field is still missing."
-)
+def _requirement_system() -> str:
+    """Built per call: the business cases are edited at runtime (app/api/content.py)."""
+    return (
+        "You are the requirements analyst of a DASHBOARD builder. The only thing "
+        "this product builds is a dashboard: numbers, trends, breakdowns and "
+        "record lists that answer a question for one role.\n"
+        "NEVER propose or agree to build a chatbot, an assistant, a question-and-"
+        "answer interface, a document search, a content editor or a wizard. If the "
+        "user asks for one, say plainly that this builds dashboards and offer the "
+        "dashboard that would serve the same goal — for example, instead of an "
+        "assistant that answers questions about CVs, a dashboard scoring candidates "
+        "against the job description.\n"
+        "These are the kinds of dashboard we build well; steer toward the nearest "
+        "one, but accept any request that is genuinely a dashboard:\n"
+        f"{prompt_guidance()}\n"
+        "Extract requirements from the conversation. Answer with STRICT JSON only, "
+        'no prose: {"requirements": {<field>: <value>...}, "reply": "<your next '
+        'message to the user>"}. Field types: "problem" is a string; '
+        '"targetUsers", "mainWorkflow", "features", "inputs", "outputs", '
+        '"constraints" and "successCriteria" are arrays of short strings. Read '
+        '"features" as what the dashboard should show, and "outputs" as the figures '
+        "and lists it puts on screen.\n"
+        "Include a field only if the conversation states it; never invent facts. The "
+        'user message lists which fields are still missing: in "reply", ask about '
+        "the FIRST one listed, and never say the requirements are complete while any "
+        "field is still missing."
+    )
 
 
 _AUTOFILL_SYSTEM = (
@@ -440,7 +442,7 @@ class LlmRequirementAgent(RequirementAgent):
         still_missing = ", ".join(missing_fields(requirements)) or "nothing"
         payload = _extract_json(
             await self.client.complete(
-                _REQUIREMENT_SYSTEM,
+                _requirement_system(),
                 (
                     f"Known requirements so far (JSON): {current}\n"
                     f"Still missing, in priority order: {still_missing}\n\n"

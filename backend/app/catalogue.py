@@ -431,6 +431,22 @@ SCENARIOS: tuple[Scenario, ...] = (
 
 BY_ID: dict[str, Scenario] = {scenario.id: scenario for scenario in SCENARIOS}
 
+# The scenarios above are the built-in set: they seed the `scenarios`
+# collection once, and the content API edits them from there. What the agents
+# and the home page see is this live copy, which the API refreshes after every
+# change (one backend process, so an in-memory copy is enough).
+_current: tuple[Scenario, ...] = SCENARIOS
+
+
+def set_current(scenarios: list[Scenario] | tuple[Scenario, ...]) -> None:
+    """Replace the live set with the enabled scenarios, in display order."""
+    global _current
+    _current = tuple(scenarios)
+
+
+def current() -> tuple[Scenario, ...]:
+    return _current
+
 
 def as_public_list() -> list[dict[str, object]]:
     """Shape the home page offers as starting points."""
@@ -443,7 +459,7 @@ def as_public_list() -> list[dict[str, object]]:
             "highlights": list(s.highlights),
             "prompt": s.prompt,
         }
-        for s in SCENARIOS
+        for s in _current
     ]
 
 
@@ -453,4 +469,7 @@ def prompt_guidance() -> str:
     Kept terse on purpose: the agents need the shape of what we build, not the
     full pitch, and a long list crowds out the rest of the instruction.
     """
-    return "\n".join(f"- {s.title} ({s.audience}): {s.highlights[0]}" for s in SCENARIOS)
+    return "\n".join(
+        f"- {s.title} ({s.audience}): {s.highlights[0] if s.highlights else s.problem}"
+        for s in _current
+    )

@@ -8,4 +8,6 @@ export const queryKeys = {
   preview: (id: string) => ['projects', id, 'preview'] as const,
   dataset: (id: string) => ['projects', id, 'dataset'] as const,
   scenarios: ['scenarios'] as const,
+  allScenarios: ['scenarios', 'all'] as const,
+  home: ['content', 'home'] as const,
 }

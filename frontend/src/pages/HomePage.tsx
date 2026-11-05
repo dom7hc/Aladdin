@@ -6,7 +6,9 @@ import { ProjectCard } from '@/components/projects/ProjectCard'
 import { Button } from '@/components/ui/Button'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
+import { useHomeContent } from '@/hooks/useContent'
 import { useCreateProject, useProjectsQuery, useScenariosQuery } from '@/hooks/useProjects'
+import { HOME_DEFAULTS } from '@/mocks/seedContent'
 import type { ProjectStatusValue } from '@/types'
 
 const STATUS_ORDER: ProjectStatusValue[] = [
@@ -55,6 +57,8 @@ export function HomePage() {
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const createProject = useCreateProject()
   const scenariosQuery = useScenariosQuery()
+  // Editable on /admin/content; the defaults show until it loads.
+  const text = useHomeContent().data ?? HOME_DEFAULTS
 
   const projectsQuery = useProjectsQuery()
 
@@ -95,18 +99,17 @@ export function HomePage() {
         <section className="mx-auto flex w-full max-w-3xl flex-col items-center pb-8 pt-6">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-secondary/30 bg-surface-container-high/80 px-3 py-1 text-[11px] text-secondary backdrop-blur-sm">
             <MaterialIcon name="stars" size={14} />
-            <span>Make your wish come true</span>
+            <span>{text.badge}</span>
           </div>
 
           <h1 className="mb-3 text-center text-display-lg-mobile font-extrabold tracking-tight text-on-surface sm:text-display-lg">
-            Turn your idea into a{' '}
+            {text.title}{' '}
             <span className="text-gradient-primary drop-shadow-[0_0_20px_rgba(71,219,207,0.35)]">
-              working dashboard
+              {text.titleHighlight}
             </span>
           </h1>
           <p className="mb-8 max-w-lg text-center text-body-lg text-on-surface-variant">
-            Describe the decision you need to make. You get a working dashboard and a slide
-            deck to present it.
+            {text.subtitle}
           </p>
 
           <div className="group relative w-full">
@@ -122,7 +125,7 @@ export function HomePage() {
                   }
                 }}
                 rows={3}
-                placeholder="Which numbers do you need to see, and who needs to see them?"
+                placeholder={text.placeholder}
                 className="w-full resize-none border-none bg-transparent p-2 text-body-md text-on-surface outline-none placeholder:text-outline/70"
               />
               <div className="mt-2 flex items-center justify-end border-t border-outline-variant/40 pt-3">
@@ -140,7 +143,7 @@ export function HomePage() {
 
           <div className="mt-5 w-full">
             <p className="mb-2 text-center text-[11px] uppercase tracking-wider text-on-surface-variant/80">
-              Or start from one of these
+              {text.scenariosLabel}
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {(scenariosQuery.data ?? []).map((scenario) => (
@@ -170,15 +173,13 @@ export function HomePage() {
             <div>
               <div className="mb-1 flex items-center gap-2">
                 <h2 className="text-headline-lg tracking-tight text-on-surface">
-                  Recent Projects
+                  {text.projectsTitle}
                 </h2>
                 <span className="rounded-full border border-outline-variant/50 bg-surface-container-high px-2.5 py-0.5 text-[11px] font-semibold text-primary-fixed">
                   {readyCount} ready
                 </span>
               </div>
-              <p className="text-body-sm text-on-surface-variant">
-                Review specs, resume sessions, or launch live prototypes.
-              </p>
+              <p className="text-body-sm text-on-surface-variant">{text.projectsSubtitle}</p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <div className="relative flex items-center">

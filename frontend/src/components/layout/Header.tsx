@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
 
@@ -15,19 +15,33 @@ function Logo() {
   )
 }
 
+const NAV = [
+  { to: '/', label: 'Projects' },
+  { to: '/admin/content', label: 'Content' },
+]
+
 export function Header() {
+  const { pathname } = useLocation()
+  const active = (to: string) => (to === '/' ? !pathname.startsWith('/admin') : pathname.startsWith(to))
   return (
     <header className="fixed left-0 right-0 top-0 z-50 h-16 border-b border-outline-variant/40 bg-surface/85 backdrop-blur-xl">
       <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-6">
           <Logo />
           <nav className="hidden items-center gap-6 md:flex">
-            <Link
-              to="/"
-              className="text-sm font-semibold text-primary transition-colors hover:text-primary-fixed"
-            >
-              Projects
-            </Link>
+            {NAV.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={
+                  active(item.to)
+                    ? 'text-sm font-semibold text-primary transition-colors hover:text-primary-fixed'
+                    : 'text-sm font-semibold text-on-surface-variant transition-colors hover:text-primary'
+                }
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
         </div>
         <div className="flex items-center gap-3">
