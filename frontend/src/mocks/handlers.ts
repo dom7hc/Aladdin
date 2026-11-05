@@ -24,6 +24,7 @@ import {
   autofillMissing,
   deriveProjectName,
 } from './requirementFlow'
+import { handleContentRequest } from './content'
 import {
   buildArchitecture,
   buildReviewResult,
@@ -256,12 +257,19 @@ interface MockRequest {
   method: string
   path: string
   body?: unknown
+  headers?: Record<string, string>
 }
 
-export function handleMockRequest({ method, path, body }: MockRequest): unknown {
+export function handleMockRequest({ method, path, body, headers }: MockRequest): unknown {
   const state = getState()
   const segments = parseSegments(path)
   const [resource, projectId, sub, action] = segments
+
+  if (resource === 'content') return handleContentRequest(method, path, body, headers)
+  // The older public list, kept for parity with the backend.
+  if (resource === 'projects' && projectId === 'scenarios' && segments.length === 2) {
+    return handleContentRequest('GET', '/content/scenarios', undefined)
+  }
 
   if (resource !== 'projects') {
     throw new ApiError(404, `Unknown mock endpoint: ${method} ${path}`)

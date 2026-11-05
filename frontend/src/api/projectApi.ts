@@ -67,7 +67,7 @@ export function getRequirements(id: string): Promise<RequirementsSummary> {
 }
 
 export function getScenarios(): Promise<Scenario[]> {
-  return apiFetch<Scenario[]>('/projects/scenarios')
+  return apiFetch<Scenario[]>('/content/scenarios')
 }
 
 export function getDataset(id: string): Promise<DatasetInfo> {

@@ -66,6 +66,8 @@ services:
       CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
       CLAUDE_EFFORT: ${CLAUDE_EFFORT:-medium}
+      # Key for /admin/content edits; a fixed default is fine on a laptop.
+      ADMIN_KEY: ${ADMIN_KEY:-local-admin}
     volumes:
       # Generated PoC source lives on a named volume, mirroring deployment.
       - generated-local:/var/lib/aladdin/generated

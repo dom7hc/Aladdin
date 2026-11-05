@@ -21,7 +21,7 @@ export function useCreateProject() {
   })
 }
 
-/** The dashboards we offer as starting points. Static, so cache it hard. */
+/** The business cases offered as starting points. Edits invalidate this. */
 export function useScenariosQuery() {
   return useQuery({
     queryKey: queryKeys.scenarios,

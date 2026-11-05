@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { ChatPage } from '@/pages/ChatPage'
+import { ContentPage } from '@/pages/ContentPage'
 import { GenerationPage } from '@/pages/GenerationPage'
 import { HomePage } from '@/pages/HomePage'
 import { RequirementReviewPage } from '@/pages/RequirementReviewPage'
@@ -23,6 +24,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/admin/content" element={<ContentPage />} />
           <Route path="/projects/:id" element={<Navigate to="chat" replace />} />
           <Route path="/projects/:id/chat" element={<ChatPage />} />
           <Route path="/projects/:id/review" element={<RequirementReviewPage />} />

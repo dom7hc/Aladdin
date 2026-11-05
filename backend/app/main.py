@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 
+from app.api.content import router as content_router
 from app.api.health import router as health_router
 from app.api.projects import router as projects_router
 from app.config import (
@@ -22,6 +23,7 @@ from app.config import (
     MONGODB_URI,
     PREVIEW_REAP_INTERVAL_SECONDS,
 )
+from app.repositories.content_repository import ContentRepository
 from app.services.preview_service import PreviewService
 
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +56,12 @@ def create_app(db=None) -> FastAPI:
             await app.state.db["messages"].create_index("project_id")
         except Exception:
             logging.getLogger(__name__).warning("Could not ensure messages index", exc_info=True)
+        try:
+            # Seed the business cases on first start and point the agents at
+            # the stored set, so edits survive a restart.
+            await ContentRepository(app.state.db).refresh_catalogue()
+        except Exception:
+            logger.warning("Could not load business cases; using the built-in set", exc_info=True)
         reaper = asyncio.create_task(_reap_previews_forever(app.state.db))
         yield
         reaper.cancel()
@@ -71,6 +79,7 @@ def create_app(db=None) -> FastAPI:
     )
     app.include_router(health_router)
     app.include_router(projects_router)
+    app.include_router(content_router)
     return app
 
 

@@ -101,14 +101,39 @@ export interface ChatRequest {
   message: string
 }
 
-/** A dashboard we build well, offered as a starting point. */
-export interface Scenario {
-  id: string
+export type ScenarioLayout = 'kpi-overview' | 'analytics-breakdown' | 'records-workspace'
+
+/** A business case as an editor writes it (POST/PUT /content/scenarios). */
+export interface ScenarioInput {
   title: string
+  /** Who it is for: the target users. */
   audience: string
   problem: string
+  layout: ScenarioLayout
   highlights: string[]
+  /** Seeds the requirement chat when a user picks this case. */
   prompt: string
+  enabled: boolean
+}
+
+/** A dashboard we build well, offered as a starting point. Stored and editable. */
+export interface Scenario extends ScenarioInput {
+  id: string
+  order: number
+  /** Shipped with the platform rather than added by an editor. */
+  builtin: boolean
+}
+
+/** The home page texts (GET/PUT /content/home). Blank on save means default. */
+export interface HomeContent {
+  badge: string
+  title: string
+  titleHighlight: string
+  subtitle: string
+  placeholder: string
+  scenariosLabel: string
+  projectsTitle: string
+  projectsSubtitle: string
 }
 
 export type DatasetColumnType = 'integer' | 'number' | 'date' | 'boolean' | 'text'

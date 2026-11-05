@@ -63,6 +63,8 @@ services:
       PREVIEW_PUBLIC_PORT_BASE: ${PREVIEW_PUBLIC_PORT_BASE:-9000}
       PREVIEW_TTL_SECONDS: ${PREVIEW_TTL_SECONDS:-3600}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be set in runtime.env}
+      # Key for /admin/content edits; unset, editing is refused (app/api/content.py).
+      ADMIN_KEY: ${ADMIN_KEY:-}
     # Lets the backend drive the host Docker daemon to build and run generated
     # PoCs. This is root-equivalent on the host, which is why the site sits
     # behind the access gate in caddy/Caddyfile.
