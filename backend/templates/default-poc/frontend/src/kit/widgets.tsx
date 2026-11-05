@@ -1,9 +1,10 @@
 // Non-chart widgets, plus the theme switcher.
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Sparkline, formatNumber } from "./charts";
+import { Icon } from "./icons";
 
 export function Card({
   title,
@@ -27,39 +28,210 @@ export function Card({
   );
 }
 
+// Measures where a rise is bad news, for specs that do not say.
+const LOWER_IS_BETTER =
+  /attrition|churn|turnover|leaver|defect|scrap|overdue|late|delay|incident|complaint|error|fail|downtime|backlog|cost|spend|expense|risk|absence|sick|waste|emission|lead time|time to/i;
+
 export function StatTile({
   label,
   value,
   unit,
   delta,
   trend,
+  icon,
+  lowerIsBetter,
 }: {
   label: string;
   value: number | string;
   unit?: string;
   delta?: number;
   trend?: number[];
+  icon?: string;
+  lowerIsBetter?: boolean;
 }) {
   const direction = delta === undefined ? "flat" : delta > 0 ? "up" : delta < 0 ? "down" : "flat";
   const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "■";
+  // Rising attrition is bad news: the tint follows whether the change is good,
+  // the arrow follows the number.
+  const inverted = lowerIsBetter ?? LOWER_IS_BETTER.test(label);
+  const tone =
+    direction === "flat" ? "flat" : (direction === "up") !== inverted ? "good" : "bad";
   return (
-    <section className="card">
-      <div className="tile-label">{label}</div>
-      <div className="tile-value">
-        {typeof value === "number" ? formatNumber(value) : value}
-        {unit ? <span style={{ fontSize: "0.6em", color: "var(--ink-3)" }}> {unit}</span> : null}
+    <section className="card tile">
+      <div className="tile-head">
+        <span className="tile-icon">
+          <Icon name={icon} label={label} />
+        </span>
+        <div className="tile-label">{label}</div>
       </div>
-      <div className="tile-foot">
-        {delta !== undefined ? (
-          // Arrow plus sign, so direction is never carried by colour alone.
-          <span className={`delta delta-${direction}`}>
-            {arrow} {Math.abs(delta).toFixed(1)}%
-          </span>
-        ) : null}
-        <span className="shell-spacer" />
+      <div className="tile-body">
+        <div className="tile-value">
+          {typeof value === "number" ? formatNumber(value) : value}
+          {unit ? <span className="tile-unit"> {unit}</span> : null}
+        </div>
         {trend && trend.length > 1 ? <Sparkline values={trend} /> : null}
       </div>
+      {delta !== undefined ? (
+        <div className="tile-foot">
+          {/* Arrow plus sign, so direction is never carried by colour alone. */}
+          <span className={`delta delta-${tone}`}>
+            {arrow} {Math.abs(delta).toFixed(1)}%
+          </span>
+          <span className="tile-note">vs previous period</span>
+        </div>
+      ) : null}
     </section>
+  );
+}
+
+/**
+ * Each row a measure against its target: bars to the target, the share as
+ * text. A met target is marked with a tick as well as colour.
+ */
+export function ProgressList({
+  rows,
+  labelField,
+  valueField,
+  targetField,
+  unit,
+}: {
+  rows: Record<string, unknown>[];
+  labelField: string;
+  valueField: string;
+  targetField: string;
+  unit?: string;
+}) {
+  if (!rows.length) return <p className="empty">No data yet.</p>;
+  return (
+    <ul className="progress-list">
+      {rows.slice(0, 8).map((row, i) => {
+        const value = Number(row[valueField]) || 0;
+        const target = Number(row[targetField]) || 0;
+        const share = target > 0 ? value / target : 0;
+        const met = target > 0 && value >= target;
+        return (
+          <li key={i}>
+            <div className="progress-head">
+              <span className="progress-label">{String(row[labelField] ?? "")}</span>
+              <span className="progress-figures">
+                {formatNumber(value)}
+                <span className="progress-target">
+                  {" "}
+                  / {formatNumber(target)}
+                  {unit ? ` ${unit}` : ""}
+                </span>
+              </span>
+            </div>
+            <div
+              className="progress-track"
+              role="progressbar"
+              aria-label={String(row[labelField] ?? "")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(share * 100)}
+            >
+              <div
+                className={`progress-fill${met ? " is-met" : ""}`}
+                style={{ width: `${Math.min(100, share * 100)}%` }}
+              />
+            </div>
+            <div className={`progress-share${met ? " is-met" : ""}`}>
+              {met ? "✓ " : ""}
+              {Math.round(share * 100)}% of target
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Top entries by value, largest first, each with a bar scaled to the leader. */
+export function RankingList({
+  rows,
+  labelField,
+  valueField,
+  unit,
+}: {
+  rows: Record<string, unknown>[];
+  labelField: string;
+  valueField: string;
+  unit?: string;
+}) {
+  const ranked = [...rows]
+    .map((row) => ({ label: String(row[labelField] ?? ""), value: Number(row[valueField]) || 0 }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+  if (!ranked.length) return <p className="empty">No data yet.</p>;
+  const top = Math.max(...ranked.map((r) => Math.abs(r.value))) || 1;
+  return (
+    <ol className="ranking">
+      {ranked.map((entry, i) => (
+        <li key={`${entry.label}-${i}`}>
+          <span className={`rank${i < 3 ? " rank-top" : ""}`}>{i + 1}</span>
+          <div className="rank-body">
+            <div className="rank-head">
+              <span className="rank-label">{entry.label}</span>
+              <span className="rank-value">
+                {formatNumber(entry.value)}
+                {unit ? <span className="progress-target"> {unit}</span> : null}
+              </span>
+            </div>
+            <div className="rank-track">
+              <div className="rank-fill" style={{ width: `${(Math.abs(entry.value) / top) * 100}%` }} />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+// Columns whose values are a state, shown as a chip. The word is always
+// printed, so the tone is a cue, never the only signal.
+const STATUS_FIELD = /status|state|stage|priority|risk|health/i;
+const TONES: [RegExp, string][] = [
+  [/late|overdue|fail|block|critical|high|risk|reject|lost|churn|breach|down|off.?track/i, "critical"],
+  [/pending|progress|review|medium|wait|hold|open|new|draft|warn/i, "warning"],
+  [/done|complete|active|paid|won|ok|on.?track|resolved|closed|approved|pass|low|healthy|up/i, "good"],
+];
+
+function toneOf(value: string): string {
+  return TONES.find(([pattern]) => pattern.test(value))?.[1] ?? "neutral";
+}
+
+function Cell({ field, value }: { field: string; value: unknown }) {
+  if (typeof value === "number") return <>{formatNumber(value)}</>;
+  const text = String(value ?? "");
+  if (text && STATUS_FIELD.test(field)) {
+    return <span className={`chip chip-${toneOf(text)}`}>{text}</span>;
+  }
+  return <>{text}</>;
+}
+
+/** Numbers line up on the right unless the spec says otherwise. */
+function alignFor(
+  col: { field: string; align?: "left" | "right" },
+  rows: Record<string, unknown>[],
+): "left" | "right" {
+  if (col.align) return col.align;
+  return rows.length && typeof rows[0][col.field] === "number" ? "right" : "left";
+}
+
+/** Placeholder cards while the first data loads, shaped like the dashboard. */
+export function Skeleton() {
+  return (
+    <div className="skeleton" aria-busy="true" aria-label="Loading">
+      <div className="row row-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div className="card skeleton-card skeleton-short" key={i} />
+        ))}
+      </div>
+      <div className="row row-split" style={{ "--cols": "2fr 1fr" } as CSSProperties}>
+        <div className="card skeleton-card" />
+        <div className="card skeleton-card" />
+      </div>
+    </div>
   );
 }
 
@@ -69,7 +241,8 @@ export function DataTable({
 }: {
   rows: Record<string, unknown>[];
   columns: { label: string; field: string; align?: "left" | "right" }[];
-}) {  const [sort, setSort] = useState<{ field: string; dir: 1 | -1 } | null>(null);
+}) {
+  const [sort, setSort] = useState<{ field: string; dir: 1 | -1 } | null>(null);
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -101,7 +274,7 @@ export function DataTable({
                         : { field: col.field, dir: 1 },
                     )
                   }
-                  style={{ textAlign: col.align ?? "left" }}
+                  style={{ textAlign: alignFor(col, rows) }}
                 >
                   {col.label}
                   {active ? (sort!.dir === 1 ? " ↑" : " ↓") : ""}
@@ -114,10 +287,8 @@ export function DataTable({
           {sorted.map((row, i) => (
             <tr key={i}>
               {columns.map((col) => (
-                <td key={col.field} style={{ textAlign: col.align ?? "left" }}>
-                  {typeof row[col.field] === "number"
-                    ? formatNumber(row[col.field] as number)
-                    : String(row[col.field] ?? "")}
+                <td key={col.field} style={{ textAlign: alignFor(col, rows) }}>
+                  <Cell field={col.field} value={row[col.field]} />
                 </td>
               ))}
             </tr>
@@ -214,7 +385,7 @@ export function EditableDataTable({
             <thead>
               <tr>
                 {columns.map((col) => (
-                  <th key={col.field} style={{ textAlign: col.align ?? "left" }}>
+                  <th key={col.field} style={{ textAlign: alignFor(col, rows) }}>
                     {col.label}
                   </th>
                 ))}
@@ -266,10 +437,8 @@ export function EditableDataTable({
                 ) : (
                   <tr key={String(row.id)}>
                     {columns.map((col) => (
-                      <td key={col.field} style={{ textAlign: col.align ?? "left" }}>
-                        {typeof row[col.field] === "number"
-                          ? formatNumber(row[col.field] as number)
-                          : String(row[col.field] ?? "")}
+                      <td key={col.field} style={{ textAlign: alignFor(col, rows) }}>
+                        <Cell field={col.field} value={row[col.field]} />
                       </td>
                     ))}
                     <td className="cell-actions">

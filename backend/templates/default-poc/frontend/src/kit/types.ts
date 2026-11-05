@@ -16,6 +16,10 @@ export interface StatWidget {
   deltaField?: string;
   /** Field holding an array of numbers for the sparkline. */
   trendField?: string;
+  /** One of the names in icons.tsx; absent or unknown, one is guessed from the label. */
+  icon?: string;
+  /** A rise is bad news (attrition, defects, cost); absent, guessed from the label. */
+  lowerIsBetter?: boolean;
 }
 
 /** A value over an ordered dimension — time, usually. */
@@ -34,6 +38,34 @@ export interface BarWidget {
   series: { label: string; field: string }[];
 }
 
+/** Share of a whole: a few categories that add up to a total. */
+export interface DonutWidget {
+  kind: "donut";
+  title: string;
+  categoryField: string;
+  valueField: string;
+  unit?: string;
+}
+
+/** Measures against their targets, one row each. */
+export interface ProgressWidget {
+  kind: "progress";
+  title: string;
+  labelField: string;
+  valueField: string;
+  targetField: string;
+  unit?: string;
+}
+
+/** The top entries by one value, largest first. */
+export interface RankingWidget {
+  kind: "ranking";
+  title: string;
+  labelField: string;
+  valueField: string;
+  unit?: string;
+}
+
 export interface TableWidget {
   kind: "table";
   title: string;
@@ -46,7 +78,15 @@ export interface TableWidget {
   editable?: boolean;
 }
 
-export type Widget = (StatWidget | LineWidget | BarWidget | TableWidget) & {
+export type Widget = (
+  | StatWidget
+  | LineWidget
+  | BarWidget
+  | DonutWidget
+  | ProgressWidget
+  | RankingWidget
+  | TableWidget
+) & {
   /** Backend path this widget reads, e.g. "/api/metrics". */
   endpoint: string;
 };
