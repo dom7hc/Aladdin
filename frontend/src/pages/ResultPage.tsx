@@ -11,7 +11,12 @@ import { WizardStepper } from '@/components/ui/WizardStepper'
 import { cn } from '@/lib/cn'
 import { formatClockTime } from '@/lib/format'
 import { useProjectQuery } from '@/hooks/useProject'
-import { useArtifactsQuery, useDownloadDeck, useDownloadSource } from '@/hooks/useArtifacts'
+import {
+  useArtifactsQuery,
+  useDownloadPresentation,
+  useDownloadSource,
+  useOpenPresentation,
+} from '@/hooks/useArtifacts'
 import { usePreviewQuery, useStartPreview, useStopPreview } from '@/hooks/usePreview'
 import type { Artifact, ArtifactType, PreviewState } from '@/types'
 
@@ -61,7 +66,19 @@ export function ResultPage() {
   const projectQuery = useProjectQuery(id)
   const artifactsQuery = useArtifactsQuery(id)
   const download = useDownloadSource(id ?? '')
-  const deck = useDownloadDeck(id ?? '')
+  const presentation = projectQuery.data?.presentation
+  const openDeck = useOpenPresentation(id ?? '', presentation?.inputHash)
+  const downloadDeck = useDownloadPresentation(id ?? '', presentation?.inputHash, projectQuery.data?.name ?? '')
+  const deckReady = presentation?.status === 'available'
+  const deckNote = deckReady
+    ? [
+        presentation?.capturedAt
+          ? `Slides from the snapshot of ${new Date(presentation.capturedAt).toLocaleString()}`
+          : 'Slides from the generation snapshot',
+        presentation?.scope,
+      ].filter(Boolean).join(' · ')
+    : (presentation?.reason ?? 'Slides are not available for this project.')
+  const deckError = openDeck.error ?? downloadDeck.error
   const previewQuery = usePreviewQuery(id)
   const startPreview = useStartPreview(id)
   const stopPreview = useStopPreview(id)
@@ -135,7 +152,7 @@ export function ResultPage() {
             </h1>
             <p className="text-base leading-relaxed text-on-surface-variant">
               Your working prototype has been generated, reviewed and tested. Inspect each
-              artifact, download the project source, or take the slides.
+              artifact, download the project source, or present the slides.
             </p>
           </div>
 
@@ -254,11 +271,24 @@ export function ResultPage() {
               <Button
                 variant="secondary"
                 icon="slideshow"
-                onClick={() => deck.mutate()}
-                loading={deck.isPending}
+                onClick={() => openDeck.mutate()}
+                loading={openDeck.isPending}
+                disabled={!deckReady}
+                title={deckNote}
                 className="px-4 py-2 text-xs"
               >
-                Download Slides
+                Open presentation
+              </Button>
+              <Button
+                variant="secondary"
+                icon="download"
+                onClick={() => downloadDeck.mutate()}
+                loading={downloadDeck.isPending}
+                disabled={!deckReady}
+                title={deckNote}
+                className="px-4 py-2 text-xs"
+              >
+                Download presentation
               </Button>
               <Button
                 variant="ghost"
@@ -268,6 +298,9 @@ export function ResultPage() {
               >
                 View build log
               </Button>
+              <p className="w-full text-xs text-on-surface-variant" role="status">
+                {deckError ? `Could not build the presentation: ${deckError.message}` : deckNote}
+              </p>
             </div>
           </div>
 

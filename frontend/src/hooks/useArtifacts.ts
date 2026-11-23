@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 
-import { fetchDeck, fetchSourceBundle, getArtifacts } from '@/api/artifactApi'
+import { fetchSourceBundle, getArtifacts, getPresentationInput } from '@/api/artifactApi'
 import { triggerDownload } from '@/lib/download'
+import { openInNewTab } from '@/presentation/openInNewTab'
 
 import { queryKeys } from './queryKeys'
 
@@ -22,11 +23,44 @@ export function useDownloadSource(id: string) {
   })
 }
 
-export function useDownloadDeck(id: string) {
+// One rendered file per stored snapshot: Open and Download use the same bytes.
+const rendered = new Map<string, Promise<string>>()
+
+function presentationHtml(id: string, inputHash: string): Promise<string> {
+  const key = `${id}:${inputHash}`
+  let html = rendered.get(key)
+  if (!html) {
+    html = Promise.all([getPresentationInput(id), import('@/presentation/renderPresentation')])
+      .then(([input, { renderPresentationHtml }]) => renderPresentationHtml(input))
+    html.catch(() => rendered.delete(key))
+    rendered.set(key, html)
+  }
+  return html
+}
+
+const htmlBlob = (html: string) => new Blob([html], { type: 'text/html;charset=utf-8' })
+
+export function useOpenPresentation(id: string, inputHash: string | null | undefined) {
   return useMutation({
-    mutationFn: () => fetchDeck(id),
-    onSuccess: ({ blob, filename }) => {
-      triggerDownload(blob, filename)
+    mutationFn: () =>
+      openInNewTab(
+        () => window.open('', '_blank'),
+        () => presentationHtml(id, inputHash ?? ''),
+        (html) => {
+          const url = URL.createObjectURL(htmlBlob(html))
+          setTimeout(() => URL.revokeObjectURL(url), 60_000)
+          return url
+        },
+      ),
+  })
+}
+
+export function useDownloadPresentation(id: string, inputHash: string | null | undefined, name: string) {
+  return useMutation({
+    mutationFn: async () => {
+      const html = await presentationHtml(id, inputHash ?? '')
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'aladdin'
+      triggerDownload(htmlBlob(html), `${slug}-presentation.html`)
     },
   })
 }

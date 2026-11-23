@@ -3,10 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "build": "echo placeholder-build"
+    "build": "vite build"
   },
   "dependencies": {
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21",
+    "@vitejs/plugin-react": "^4.3.0"
   }
 }

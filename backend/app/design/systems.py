@@ -349,8 +349,6 @@ def design_css(system: DesignSystem) -> str:
  * which are already checked against the series palette; the dark accent below
  * is derived from the light primary so it stays visible on them.
  */
-@import url("{fonts.google_url()}");
-
 :root {{
   --surface-0: {palette.card};
   --surface-1: {palette.background};
@@ -364,8 +362,8 @@ def design_css(system: DesignSystem) -> str:
 
   --critical: {palette.destructive};
 
-  --font-body: "{fonts.body}", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "{fonts.heading}", var(--font-body);
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: var(--font-body);
 }}
 
 /* The accent applies only under the "design" theme, the kit's default.

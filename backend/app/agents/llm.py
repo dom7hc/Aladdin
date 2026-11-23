@@ -18,6 +18,7 @@ DeepSeek client if Claude fails. Every other stage stays on DeepSeek.
 import base64
 import json
 import logging
+import re
 from typing import Any, Protocol
 
 from app import config
@@ -37,12 +38,14 @@ from app.catalogue import prompt_guidance
 from app.design import reasoning
 from app.design import systems as design
 from app.generation import runner
+from app.generation.prepare import PROTECTED_DATA, write_dashboard
 from app.generation.spec import (
     ICONS,
     LAYOUTS,
     MAX_SERIES,
     MAX_WIDGETS,
     THEMES,
+    normalize_spec,
     prune_filters,
     validate_spec,
 )
@@ -631,6 +634,20 @@ _ARCHITECT_SYSTEM = (
 )
 
 
+_ARCHITECT_SYSTEM += (
+    "\nVersioned contract: schemaVersion=2, stable widget id strings. "
+    "hero binds id/label/endpoint/field/unit/lowerIsBetter (boolean or null if unknown), "
+    "minSamples>=2; default hero is the first stat. Optional comparison binds "
+    "kind (target or prior), label (named period or Sample target), endpoint, field, "
+    "unit matching actual, and keyField for series alignment. All endpoints must be "
+    "simple local /api/... paths, no queries, encodings or traversal. "
+    "Numeric conclusions/insight text are computed by the platform, not supplied by you. "
+    "When requirements.sample exists, use its spec bindings/metric and fixture summary; "
+    "you may choose the palette/look but not invent rows/units/targets. Uploads have "
+    "no sample targets or history unless those columns genuinely exist."
+)
+
+
 class LlmArchitectAgent(ArchitectAgent):
     def __init__(self, client: CompletionClient | None = None) -> None:
         self.client = client or DeepSeekClient()
@@ -647,9 +664,10 @@ class LlmArchitectAgent(ArchitectAgent):
                 {**requirements, "designBrief": brief.for_prompt()},
                 ensure_ascii=False,
             ),
-            validate=validate_spec,
+            validate=lambda value: validate_spec(normalize_spec(value)),
             error_prefix="LLM dashboard spec is invalid: ",
         )
+        payload = normalize_spec(payload)
         # An omitted or invented id takes the brief's first pick, which suits
         # the industry, rather than the platform-wide default, which suits no one.
         payload["designSystem"] = reasoning.fill_design_system(payload.get("designSystem"), brief)
@@ -679,6 +697,13 @@ def _safe_generated_path(path: str) -> bool:
     """
     if not path or path.startswith("/") or "\\" in path or ".." in path:
         return False
+    # No filesystem aliases for protected rows/metadata (including Windows
+    # trailing-dot normalization and alternate data streams).
+    if any(
+        part in ("", ".") or part.endswith(".") or not re.fullmatch(r"[A-Za-z0-9_.-]+", part)
+        for part in path.split("/")
+    ):
+        return False
     if path == "README.md":
         return True
     # The spec is written by the platform from the validated architecture, not
@@ -703,8 +728,12 @@ _DEVELOPER_SYSTEM = (
     "numbers); 'line', 'bar', 'donut', 'progress', 'ranking' and 'table' "
     "endpoints return an ARRAY of objects whose keys are exactly the fields "
     "the widget names (a progress row carries its value and its target). "
-    "Seed 6-12 rows of realistic sample data in code so the "
-    "dashboard is populated on first load with no database.\n"
+    "The platform prepares deterministic sample rows when no upload exists. "
+    "Read the supplied dataset file in BOTH modes; never invent independent data. "
+    "Requirements.sample provides the fixed metric, units, aggregation, date anchor "
+    "and chart guidance; respect these bindings and label the data as sample. "
+    "A sample comparison is a named Sample target; compute it from sample_target "
+    "in the same complete period. Never invent comparisons for uploaded rows.\n"
     'A table with "editable": true is user-writable: implement '
     "POST <endpoint> (create a row from the JSON body), PUT "
     "<endpoint>/{id} and DELETE <endpoint>/{id}, with every row "
@@ -811,7 +840,7 @@ class LlmDeveloperAgent(DeveloperAgent):
             if not isinstance(entry, dict):
                 raise LLMError("LLM developer files contained a non-object entry")
             path, content = entry.get("path"), entry.get("content")
-            if path == DATASET_PATH:
+            if isinstance(path, str) and path.casefold() in PROTECTED_DATA:
                 # Dropped, not fatal: echoing the data file back is an easy
                 # mistake, and failing the run over it would be worse.
                 logger.warning("LLM developer output the dataset file; ignoring it")
@@ -850,50 +879,8 @@ class LlmDeveloperAgent(DeveloperAgent):
             ws.write_file(project_id, path, content)
             written.append(path)
 
-        # The look is resolved here, not by the model: an unknown id falls back
-        # to the default rather than failing a generation over cosmetics.
-        chosen = architecture.get("designSystem") or {}
-        system = design.resolve(chosen.get("palette"), chosen.get("fonts"), chosen.get("style"))
-
-        # The spec comes from the validated architecture, not from the model.
-        # Writing it here means the rendered dashboard always matches what the
-        # architect designed, with no chance of a transcription slip. Its
-        # designSystem carries the resolved ids, so the kit only ever sees a
-        # look that looks.css defines.
-        spec = {
-            **architecture,
-            "designSystem": {
-                "palette": system.palette.id,
-                "fonts": system.fonts.id,
-                "style": system.style,
-            },
-        }
-        # Where the numbers come from, shown under the title. From the
-        # platform's own record of the upload, never from the model.
-        dataset = requirements.get("dataset")
-        if isinstance(dataset, dict) and dataset.get("filename"):
-            rows = int(dataset.get("rowCount") or 0)
-            spec["source"] = {
-                "filename": dataset["filename"],
-                "rows": rows,
-                "fileRows": int(dataset.get("fileRowCount") or rows),
-            }
-        ws.write_file(
-            project_id,
-            DASHBOARD_SPEC_PATH,
-            json.dumps(spec, ensure_ascii=False, indent=2) + "\n",
-        )
-        written.append(DASHBOARD_SPEC_PATH)
-
-        ws.write_file(project_id, DESIGN_CSS_PATH, design.design_css(system))
-        written.append(DESIGN_CSS_PATH)
-        logger.info(
-            "Project %s styled with %s / %s / %s",
-            project_id,
-            system.palette.id,
-            system.fonts.id,
-            system.style,
-        )
+        # Same protected spec/provenance/theme preparation as stub mode.
+        written += write_dashboard(project_id, requirements, architecture)
 
         missing = MINIMAL_FILES - set(ws.list_files(project_id))
         if missing:

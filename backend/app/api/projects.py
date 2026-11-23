@@ -100,7 +100,7 @@ async def create_project(
     payload: ProjectCreate,
     service: Annotated[ProjectService, Depends(get_project_service)],
 ) -> ProjectResponse:
-    return await service.create(payload.idea)
+    return await service.create(payload.idea, payload.scenario_id)
 
 
 @router.get("", response_model=list[ProjectResponse])
@@ -219,6 +219,15 @@ async def source(
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{project_id}.zip"'},
     )
+
+
+@router.get("/{project_id}/presentation-input")
+async def presentation_input(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+) -> dict[str, Any]:
+    """Read the initial stored bundle; never execute generated code on GET."""
+    return await _guard(project_id, service.presentation_input(project_id))
 
 
 @router.get("/{project_id}/deck")

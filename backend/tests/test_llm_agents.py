@@ -258,7 +258,9 @@ async def test_architect_agent_returns_a_valid_dashboard_spec():
     spec = await agent.run(empty_requirements("x"))
     # The model chose no look, so the design brief's first picks fill it in.
     design_system = spec.pop("designSystem")
-    assert spec == VALID_SPEC
+    from app.generation.spec import normalize_spec
+
+    assert spec == normalize_spec(VALID_SPEC)
     assert set(design_system) == {"palette", "fonts", "style"}
 
 
@@ -304,7 +306,9 @@ async def test_architect_reasks_once_on_invalid_json():
         '{"title": "Orders", "layout": "kpi-overview", "widgets": [', json.dumps(VALID_SPEC)
     )
     spec = await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
-    assert _without_look(spec) == VALID_SPEC
+    from app.generation.spec import normalize_spec
+
+    assert _without_look(spec) == normalize_spec(VALID_SPEC)
     assert len(client.chat.completions.calls) == 2
     retry = client.chat.completions.calls[1]["messages"][1]["content"]
     assert "not valid JSON" in retry
@@ -314,7 +318,9 @@ async def test_architect_reasks_once_on_an_invalid_spec():
     bad = {**VALID_SPEC, "widgets": [{"kind": "stat", "label": "x"}]}  # endpoint+field missing
     client = FakeClient(json.dumps(bad), json.dumps(VALID_SPEC))
     spec = await LlmArchitectAgent(DeepSeekClient(client=client)).run(empty_requirements("x"))
-    assert _without_look(spec) == VALID_SPEC
+    from app.generation.spec import normalize_spec
+
+    assert _without_look(spec) == normalize_spec(VALID_SPEC)
     assert len(client.chat.completions.calls) == 2
     retry = client.chat.completions.calls[1]["messages"][1]["content"]
     assert "'endpoint'" in retry  # the problem is named to the model
@@ -359,7 +365,9 @@ async def test_developer_agent_writes_backend_and_the_platform_writes_the_spec(l
     assert llm.DASHBOARD_SPEC_PATH in written
     spec = json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH))
     design_system = spec.pop("designSystem")
-    assert spec == VALID_SPEC
+    from app.generation.spec import normalize_spec
+
+    assert spec == normalize_spec(VALID_SPEC)
     assert design_system == {
         "palette": "saas-general",
         "fonts": "modern-professional",
@@ -610,7 +618,9 @@ async def test_fallback_client_uses_secondary_when_primary_fails():
 
 async def test_architect_designs_with_claude():
     agent = LlmArchitectAgent(_claude(_claude_response(json.dumps(VALID_SPEC))))
-    assert _without_look(await agent.run(empty_requirements("x"))) == VALID_SPEC
+    from app.generation.spec import normalize_spec
+
+    assert _without_look(await agent.run(empty_requirements("x"))) == normalize_spec(VALID_SPEC)
 
 
 async def test_requirement_agent_never_claims_complete_while_blocked():
@@ -711,3 +721,16 @@ async def test_developer_adds_no_source_without_a_file(llm_workspace: str):
     agent = LlmDeveloperAgent(DeepSeekClient(client=FakeClient(json.dumps({"files": files}))))
     await agent.run(llm_workspace, {}, VALID_SPEC)
     assert "source" not in json.loads(ws.read_file(llm_workspace, llm.DASHBOARD_SPEC_PATH))
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "backend/data/./dataset.json",
+        "backend/data//dataset.json",
+        "backend/data/dataset.json.",
+        "backend/data/dataset.json:stream",
+    ],
+)
+def test_protected_data_cannot_be_addressed_through_path_aliases(path):
+    assert not llm._safe_generated_path(path)

@@ -5,6 +5,45 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Sparkline, formatNumber } from "./charts";
 import { Icon } from "./icons";
+import type { HeroFact } from "./insights";
+
+export function DataState({ error, onRetry }: { error?: boolean; onRetry?: () => void }) {
+  return <div className="data-state" role={error ? "alert" : "status"}>
+    <span aria-hidden="true">{error ? "↻" : "◇"}</span>
+    <p>{error ? "We couldn’t load these figures." : "No rows for this period."}</p>
+    <p className="tile-note">{error ? "Please try again." : "Try another filter or add some data."}</p>
+    {onRetry ? <button className="btn" onClick={onRetry}>Retry</button> : null}
+  </div>;
+}
+
+export function Hero({ label, unit, fact }: { label: string; unit?: string; fact: HeroFact }) {
+  if (fact.actual === null) return <section className="card hero cell" data-hero={fact.id}>
+    <div className="hero-label">{label}</div><DataState />
+  </section>;
+  const direction = fact.delta === null || fact.delta === 0 ? "■" : fact.delta > 0 ? "▲" : "▼";
+  const verdict = fact.tone === "good" ? "better" : fact.tone === "bad" ? "worse" : "neutral";
+  return <section className="card hero cell" data-hero={fact.id} aria-label={`Headline: ${label}`}>
+    <div className="hero-primary">
+    <div className="hero-label" title={label}>{label}</div>
+    <div className="hero-main">
+      <div className="hero-value">{fact.valueText}<span className="hero-unit">{unit}</span></div>
+      <div className="hero-comparison">
+        {fact.delta !== null ? <span className={`delta delta-${fact.tone === "neutral" ? "flat" : fact.tone}`}>
+          {direction} {fact.deltaText} · {verdict}
+        </span> : null}
+        <span className="tile-note">{fact.comparisonText}</span>
+      </div>
+    </div>
+    <p className="hero-insight">{fact.insight}</p>
+    </div>
+    {fact.supporting.length ? <div className="hero-supporting">
+      {fact.supporting.map(item => <div className="hero-support" key={item.note}>
+        <div className="tile-note">{item.note} · {item.label}</div>
+        <div className="hero-support-value">{formatNumber(item.value)} <small>{item.unit}</small></div>
+      </div>)}
+    </div> : null}
+  </section>;
+}
 
 export function Card({
   title,
@@ -27,10 +66,6 @@ export function Card({
     </section>
   );
 }
-
-// Measures where a rise is bad news, for specs that do not say.
-const LOWER_IS_BETTER =
-  /attrition|churn|turnover|leaver|defect|scrap|overdue|late|delay|incident|complaint|error|fail|downtime|backlog|cost|spend|expense|risk|absence|sick|waste|emission|lead time|time to/i;
 
 export function StatTile({
   label,
@@ -55,9 +90,9 @@ export function StatTile({
   const arrow = direction === "up" ? "▲" : direction === "down" ? "▼" : "■";
   // Rising attrition is bad news: the tint follows whether the change is good,
   // the arrow follows the number.
-  const inverted = lowerIsBetter ?? LOWER_IS_BETTER.test(label);
+  const inverted = lowerIsBetter;
   const tone =
-    direction === "flat" ? "flat" : (direction === "up") !== inverted ? "good" : "bad";
+    direction === "flat" || inverted == null ? "flat" : (direction === "up") !== inverted ? "good" : "bad";
   return (
     <section className="card tile">
       <div className="tile-head">
@@ -77,7 +112,7 @@ export function StatTile({
         <div className="tile-foot">
           {/* Arrow plus sign, so direction is never carried by colour alone. */}
           <span className={`delta delta-${tone}`}>
-            {arrow} {Math.abs(delta).toFixed(1)}%
+            {arrow} {Math.abs(delta).toFixed(1)}% · {tone === "good" ? "better" : tone === "bad" ? "worse" : "neutral"}
           </span>
           <span className="tile-note">{deltaLabel || "vs previous period"}</span>
         </div>
@@ -224,6 +259,7 @@ function alignFor(
 export function Skeleton() {
   return (
     <div className="skeleton" aria-busy="true" aria-label="Loading">
+      <div className="card skeleton-card skeleton-hero" />
       <div className="row row-4">
         {[0, 1, 2, 3].map((i) => (
           <div className="card skeleton-card skeleton-short" key={i} />

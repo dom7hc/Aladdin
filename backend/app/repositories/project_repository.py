@@ -56,7 +56,9 @@ class ProjectRepository:
         return await self.collection.find_one({"_id": self.parse_id(project_id)})
 
     async def list_recent(self, limit: int = 20) -> list[dict[str, Any]]:
-        cursor = self.collection.find({}).sort("updated_at", -1).limit(limit)
+        # Mongo stores datetimes at millisecond precision. Ties need a stable
+        # newest-created fallback, especially for fast stub/sample creation.
+        cursor = self.collection.find({}).sort([("updated_at", -1), ("_id", -1)]).limit(limit)
         return list(await cursor.to_list(length=limit))
 
     async def get_or_raise(self, project_id: str) -> dict[str, Any]:
@@ -104,6 +106,8 @@ class ProjectRepository:
         """Mongo document -> API-shaped dict (id as string, datetimes ISO)."""
         return {
             "id": str(project["_id"]),
+            "scenario_id": project.get("scenario_id"),
+            "presentation": project.get("presentation"),
             "name": project["name"],
             "description": project["description"],
             "status": project["status"],

@@ -1,0 +1,257 @@
+{
+ "copy": {
+  "problem": "Cost-centre owners find out about overspend weeks after month end, when it is too late to act.",
+  "targetUsers": [
+   "Finance business partners",
+   "Cost-centre owners"
+  ],
+  "successCriteria": [
+   "Agree which cost centres need a spending review before next month's close."
+  ],
+  "features": [],
+  "mainWorkflow": []
+ },
+ "hashes": {
+  "backend": "07a70b8ee30808c84d1d3b03dbc80591967842539396228111157d53205d7876",
+  "css": "f33f8a7e7cc47561c70ea1e9b9774ff3a9b6847553fbcece7ff91b0419f31358",
+  "dataset": "47b0fcba755bea04bff3a07b1f1acb37762167355bc68f18daa3a1c38078dba4",
+  "endpoints": "33ceb1616263edb3a2cf10e4f53da15a1dec5d2841c221b8c6e293645afff6c6",
+  "spec": "262ee4ac3070a59df962f58c375c36a8e038ce7f4594effd0c792e9a8b58a339"
+ },
+ "rendererVersion": "dashboard-kit-014-v1",
+ "schemaVersion": 1,
+ "snapshot": {
+  "capturedAt": "2026-11-23T12:46:02.015208+00:00",
+  "endpoints": {
+   "/api/breakdown": [
+    {
+     "actual": 23310.0,
+     "label": "Engineering",
+     "target": 22680.0
+    },
+    {
+     "actual": 25074.0,
+     "label": "Sales",
+     "target": 22680.0
+    },
+    {
+     "actual": 26838.0,
+     "label": "Finance",
+     "target": 22680.0
+    },
+    {
+     "actual": 28602.0,
+     "label": "Operations",
+     "target": 22680.0
+    }
+   ],
+   "/api/metrics": {
+    "actual": 103824.0,
+    "sampleCount": 12,
+    "target": 90720.0,
+    "total": 103824.0
+   },
+   "/api/records": [
+    {
+     "actual": 23310.0,
+     "label": "Engineering",
+     "target": 22680.0,
+     "variance": 630.0
+    },
+    {
+     "actual": 25074.0,
+     "label": "Sales",
+     "target": 22680.0,
+     "variance": 2394.0
+    },
+    {
+     "actual": 26838.0,
+     "label": "Finance",
+     "target": 22680.0,
+     "variance": 4158.0
+    },
+    {
+     "actual": 28602.0,
+     "label": "Operations",
+     "target": 22680.0,
+     "variance": 5922.0
+    }
+   ],
+   "/api/series": [
+    {
+     "actual": 89712.0,
+     "date": "2026-05-31",
+     "target": 90720.0
+    },
+    {
+     "actual": 95760.0,
+     "date": "2026-06-30",
+     "target": 90720.0
+    },
+    {
+     "actual": 91728.0,
+     "date": "2026-07-31",
+     "target": 90720.0
+    },
+    {
+     "actual": 97776.0,
+     "date": "2026-08-31",
+     "target": 90720.0
+    },
+    {
+     "actual": 99792.0,
+     "date": "2026-09-30",
+     "target": 90720.0
+    },
+    {
+     "actual": 103824.0,
+     "date": "2026-10-31",
+     "target": 90720.0
+    }
+   ]
+  },
+  "provenance": {
+   "dateAnchor": "2026-11-01",
+   "fixtureId": "budget-vs-actual",
+   "kind": "sample",
+   "label": "Sample data",
+   "seed": 14
+  },
+  "schemaVersion": 1,
+  "scope": "Initial generation snapshot; default filters (all records)",
+  "specHash": "262ee4ac3070a59df962f58c375c36a8e038ce7f4594effd0c792e9a8b58a339"
+ },
+ "spec": {
+  "designSystem": {
+   "fonts": "modern-professional",
+   "palette": "saas-general",
+   "style": "soft-ui-evolution"
+  },
+  "hero": {
+   "comparison": {
+    "endpoint": "/api/metrics",
+    "field": "target",
+    "kind": "target",
+    "label": "Sample target",
+    "unit": "USD"
+   },
+   "endpoint": "/api/metrics",
+   "field": "actual",
+   "id": "widget-1",
+   "label": "Actual cost",
+   "lowerIsBetter": true,
+   "minSamples": 2,
+   "unit": "USD"
+  },
+  "layout": "analytics-breakdown",
+  "provenance": {
+   "dateAnchor": "2026-11-01",
+   "fixtureId": "budget-vs-actual",
+   "kind": "sample",
+   "label": "Sample data",
+   "seed": 14
+  },
+  "schemaVersion": 2,
+  "subtitle": "October 2026",
+  "title": "Budget versus actual",
+  "widgets": [
+   {
+    "comparison": {
+     "endpoint": "/api/metrics",
+     "field": "target",
+     "kind": "target",
+     "label": "Sample target",
+     "unit": "USD"
+    },
+    "endpoint": "/api/metrics",
+    "field": "actual",
+    "id": "widget-1",
+    "kind": "stat",
+    "label": "Actual cost",
+    "lowerIsBetter": true,
+    "unit": "USD"
+   },
+   {
+    "categoryField": "label",
+    "comparison": {
+     "endpoint": "/api/breakdown",
+     "field": "target",
+     "keyField": "label",
+     "kind": "target",
+     "label": "Sample target",
+     "unit": "USD"
+    },
+    "endpoint": "/api/breakdown",
+    "id": "widget-2",
+    "kind": "bar",
+    "series": [
+     {
+      "field": "actual",
+      "label": "Actual cost"
+     }
+    ],
+    "title": "Actual cost by cost centre",
+    "unit": "USD"
+   },
+   {
+    "comparison": {
+     "endpoint": "/api/series",
+     "field": "target",
+     "keyField": "date",
+     "kind": "target",
+     "label": "Sample target",
+     "unit": "USD"
+    },
+    "endpoint": "/api/series",
+    "id": "widget-3",
+    "kind": "line",
+    "series": [
+     {
+      "field": "actual",
+      "label": "Actual cost"
+     }
+    ],
+    "title": "Actual cost over complete months",
+    "unit": "USD",
+    "xField": "date"
+   },
+   {
+    "columns": [
+     {
+      "field": "label",
+      "label": "Cost Centre"
+     },
+     {
+      "field": "actual",
+      "label": "Actual cost (USD)"
+     },
+     {
+      "field": "target",
+      "label": "Sample target (USD)"
+     },
+     {
+      "field": "variance",
+      "label": "Variance (USD)"
+     }
+    ],
+    "endpoint": "/api/records",
+    "id": "widget-4",
+    "kind": "table",
+    "title": "October detail by cost centre"
+   }
+  ]
+ },
+ "theme": {
+  "attributes": {
+   "data-look": "soft-ui-evolution",
+   "data-mode": "light",
+   "data-theme": "design"
+  },
+  "css": ":root{--accent:#2563eb;--surface-0:#fff;--ink-1:#111;--good:#15803d;--critical:#b91c1c}",
+  "designSystem": {
+   "fonts": "modern-professional",
+   "palette": "saas-general",
+   "style": "soft-ui-evolution"
+  }
+ }
+}

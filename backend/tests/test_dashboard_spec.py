@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from app.generation.spec import LAYOUTS, THEMES, prune_filters, spec_endpoints, validate_spec
 
 GOOD = {
@@ -271,7 +273,8 @@ def test_kit_types_and_icons_match_the_validator():
 
     kit = Path(TEMPLATES_DIR) / "default-poc" / "frontend" / "src" / "kit"
     types = (kit / "types.ts").read_text(encoding="utf-8")
-    declared = set(re.findall(r'kind:\s*"([a-z]+)"', types))
+    widget_types = types.split("export interface Comparison")[0]
+    declared = set(re.findall(r'kind:\s*"([a-z]+)"', widget_types))
     assert declared == set(REQUIRED_BY_KIND)
 
     render = (kit / "render.tsx").read_text(encoding="utf-8")
@@ -281,3 +284,95 @@ def test_kit_types_and_icons_match_the_validator():
     icons = (kit / "icons.tsx").read_text(encoding="utf-8")
     for name in ICONS:
         assert re.search(rf"^  {name}: ", icons, re.MULTILINE), f"icons.tsx lacks {name}"
+
+
+def test_legacy_normalization_is_stable_and_does_not_mutate():
+    from copy import deepcopy
+
+    from app.generation.spec import normalize_spec
+
+    original = deepcopy(GOOD)
+    spec = normalize_spec(GOOD)
+    assert GOOD == original
+    assert normalize_spec(spec) == spec
+    assert spec["schemaVersion"] == 2
+    assert len({w["id"] for w in spec["widgets"]}) == len(spec["widgets"])
+    assert spec["hero"]["field"] == "total"
+    assert spec["hero"]["lowerIsBetter"] is None
+    assert spec["provenance"]["kind"] == "unknown"
+    assert validate_spec(spec) == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/../secret",
+        "/api/%2e%2e/secret",
+        "/api//x",
+        "/api/x?url=http://evil",
+        "/api/x#fragment",
+        "/api/x\\y",
+        "/api/",
+        "//evil/api/x",
+        "/api/x\n",
+    ],
+)
+def test_unsafe_endpoint_is_fatal_even_during_normalization(path):
+    from app.generation.spec import normalize_spec
+
+    with pytest.raises(ValueError, match="endpoint"):
+        normalize_spec({**GOOD, "widgets": [{**GOOD["widgets"][0], "endpoint": path}]})
+
+
+def test_hero_and_comparison_endpoint_coverage_and_units():
+    from app.generation.spec import normalize_spec
+
+    spec = normalize_spec(GOOD)
+    spec["hero"].update(endpoint="/api/headline", unit="days")
+    spec["hero"]["comparison"] = {
+        "kind": "target",
+        "label": "Sample target",
+        "endpoint": "/api/target",
+        "field": "target",
+        "unit": "days",
+    }
+    spec["widgets"][1]["comparison"] = {
+        "kind": "prior",
+        "label": "October",
+        "endpoint": "/api/prior",
+        "field": "value",
+        "unit": "count",
+        "keyField": "day",
+    }
+    spec["widgets"][1]["unit"] = "count"
+    assert validate_spec(spec) == []
+    assert {"/api/headline", "/api/target", "/api/prior"} <= spec_endpoints(spec)
+    spec["hero"]["comparison"]["unit"] = "%"
+    assert any("unit" in e for e in validate_spec(spec))
+
+
+def test_version_ids_direction_finite_and_snapshot_contracts():
+    from app.generation.spec import normalize_spec, validate_snapshot
+
+    spec = normalize_spec(GOOD)
+    for key, bad in [("schemaVersion", 99), ("provenance", {"kind": "made-up"})]:
+        assert validate_spec({**spec, key: bad})
+    spec["hero"]["lowerIsBetter"] = "yes"
+    assert any("lowerIsBetter" in e for e in validate_spec(spec))
+    spec["hero"]["lowerIsBetter"] = None
+    spec["hero"]["minSamples"] = float("nan")
+    assert any("finite" in e for e in validate_spec(spec))
+    spec = normalize_spec(GOOD)
+    snapshot = {
+        "schemaVersion": 1,
+        "specHash": "a" * 64,
+        "capturedAt": "2026-11-23T00:00:00Z",
+        "scope": "Initial generation / default filters",
+        "endpoints": {p: {} for p in spec_endpoints(spec)},
+        "provenance": spec["provenance"],
+    }
+    assert validate_snapshot(snapshot, spec) == []
+    snapshot["endpoints"]["/api/metrics"] = {"x": float("inf")}
+    assert any("finite" in e for e in validate_snapshot(snapshot, spec))
+    del snapshot["endpoints"]["/api/metrics"]
+    assert any("missing" in e for e in validate_snapshot(snapshot, spec))

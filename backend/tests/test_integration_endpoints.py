@@ -31,7 +31,23 @@ def test_list_projects_shape(client, project_id):
         "completion",
         "createdAt",
         "updatedAt",
+        "scenarioId",
+        "presentation",
     }
+    assert project["presentation"] is None  # legacy/new projects have no snapshot yet
+
+
+async def test_list_projects_breaks_equal_millisecond_ties(db):
+    from datetime import UTC, datetime
+
+    from app.repositories.project_repository import ProjectRepository
+
+    repo = ProjectRepository(db)
+    first = await repo.create("First", "First", {}, 0)
+    second = await repo.create("Second", "Second", {}, 0)
+    stamp = datetime(2026, 11, 23, tzinfo=UTC)
+    await db["projects"].update_many({}, {"$set": {"updated_at": stamp}})
+    assert [str(p["_id"]) for p in await repo.list_recent()] == [second, first]
 
 
 def test_chat_history_returns_greeting(client, project_id):

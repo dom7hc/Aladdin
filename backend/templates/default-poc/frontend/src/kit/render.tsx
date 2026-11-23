@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BarChart, DonutChart, LineChart } from "./charts";
 import { Icon } from "./icons";
+import { asRows, asObject, trustworthyDelta, endpointsFor, normalizeSpec } from "./normalize";
+import { chartDirection, chartFacts, heroFact, finite } from "./insights";
 import type { DashboardSpec, Widget } from "./types";
 import {
   Card,
@@ -17,6 +19,8 @@ import {
   Skeleton,
   StatTile,
   ThemeSwitcher,
+  Hero,
+  DataState,
 } from "./widgets";
 
 type Payload = Record<string, unknown> | Record<string, unknown>[];
@@ -75,54 +79,36 @@ function useEndpointData(
   return { data, errors, loading };
 }
 
-function asRows(payload: Payload | undefined): Record<string, unknown>[] {
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === "object") {
-    // Endpoints often wrap a list: {items: [...]}, {rows: [...]}, {data: [...]}.
-    for (const key of ["items", "rows", "data", "results"]) {
-      const value = (payload as Record<string, unknown>)[key];
-      if (Array.isArray(value)) return value as Record<string, unknown>[];
-    }
-  }
-  return [];
-}
-
-/**
- * A change worth showing, or none. A missing or non-numeric value used to read
- * as "0.0%", and a seen-live "▼29230%" came from a backend dividing by a near
- * empty period: past 999% the figure says more about the maths than the data.
- */
-function trustworthyDelta(value: unknown): number | undefined {
-  if (value === null || value === undefined || value === "") return undefined;
-  const number = Number(value);
-  if (!Number.isFinite(number) || Math.abs(number) > 999) return undefined;
-  return number;
-}
-
-function asObject(payload: Payload | undefined): Record<string, unknown> {
-  if (Array.isArray(payload)) return payload[0] ?? {};
-  return (payload as Record<string, unknown>) ?? {};
-}
-
 function WidgetView({
   widget,
   payload,
   error,
   onMutate,
+  reference,
+  loading,
+  lowerIsBetter,
 }: {
   widget: Widget;
   payload: Payload | undefined;
   error?: string;
   onMutate: () => void;
+  reference?: Payload;
+  loading?: boolean;
+  lowerIsBetter?: boolean | null;
 }) {
   if (error) {
     // Only this widget is affected; the rest of the dashboard still renders.
     return (
       <Card title={"title" in widget ? widget.title : widget.label}>
-        <p className="empty">Could not load this widget: {error}.</p>
+        <DataState error onRetry={onMutate} />
       </Card>
     );
   }
+  if (loading) return <Card><div className="skeleton-card" aria-label="Loading figures" aria-busy="true" /></Card>;
+  if (widget.kind === "stat" ? finite(asObject(payload)[widget.field]) === null : !asRows(payload).length)
+    return <Card title={"title" in widget ? widget.title : widget.label}><DataState /></Card>;
+  const facts = chartFacts(widget, payload, reference);
+  const comparison = facts.comparison ? { ...facts.comparison, field: "__reference" } : undefined;
   switch (widget.kind) {
     case "stat": {
       const source = asObject(payload);
@@ -143,17 +129,21 @@ function WidgetView({
     }
     case "line":
       return (
-        <Card title={widget.title}>
-          <LineChart rows={asRows(payload)} xField={widget.xField} series={widget.series} />
+        <Card title={facts.title}>
+          <LineChart rows={facts.rows} xField={widget.xField} series={widget.series}
+            comparison={comparison} annotation={facts.annotation} />
         </Card>
       );
     case "bar":
       return (
-        <Card title={widget.title}>
+        <Card title={facts.title}>
           <BarChart
-            rows={asRows(payload)}
+            rows={facts.rows}
             categoryField={widget.categoryField}
             series={widget.series}
+            comparison={comparison}
+            annotation={facts.annotation}
+            lowerIsBetter={lowerIsBetter}
           />
         </Card>
       );
@@ -295,7 +285,8 @@ function pairRows(widgets: Widget[], node: (w: Widget) => ReactNode): ReactNode[
 
 /** Headline numbers first, then everything else in paired rows. */
 function arrange(spec: DashboardSpec, node: (w: Widget) => ReactNode) {
-  const stats = spec.widgets.filter((w) => w.kind === "stat");
+  const stats = spec.widgets.filter((w) => w.kind === "stat" &&
+    !(spec.hero?.endpoint === w.endpoint && spec.hero.field === w.field));
   const rest = spec.widgets.filter((w) => w.kind !== "stat");
   return (
     <>
@@ -319,7 +310,8 @@ function SourceNote({ source }: { source: NonNullable<DashboardSpec["source"]> }
   );
 }
 
-export function Dashboard({ spec }: { spec: DashboardSpec }) {
+export function Dashboard({ spec: input }: { spec: DashboardSpec }) {
+  const spec = useMemo(() => normalizeSpec(input), [input]);
   const [filters, setFilters] = useState<Record<string, string>>({});
   // Bumped by editable tables after a successful mutation; every endpoint then
   // refetches, so stats and charts stay consistent with the table.
@@ -337,7 +329,7 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
     if (look) document.documentElement.setAttribute("data-look", look);
   }, [look]);
   const endpoints = useMemo(
-    () => Array.from(new Set(spec.widgets.map((w) => w.endpoint))),
+    () => endpointsFor(spec),
     [spec],
   );
   const { data, errors, loading } = useEndpointData(endpoints, filters, refresh);
@@ -348,13 +340,16 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
     <div
       className="cell"
       key={`${widget.kind}-${"title" in widget ? widget.title : widget.label}`}
-      style={{ "--i": spec.widgets.indexOf(widget) } as CSSProperties}
+      style={{ "--i": Math.min(2.5, spec.widgets.indexOf(widget) + 1) } as CSSProperties}
     >
       <WidgetView
         widget={widget}
         payload={data[widget.endpoint]}
         error={errors[widget.endpoint]}
         onMutate={() => setRefresh((r) => r + 1)}
+        reference={widget.comparison ? data[widget.comparison.endpoint] : undefined}
+        loading={loading}
+        lowerIsBetter={chartDirection(spec, widget)}
       />
     </div>
   );
@@ -370,6 +365,9 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
         </span>
         <div>
           <h1 className="shell-title">{spec.title}</h1>
+          {spec.provenance?.kind === "sample" ? (
+            <span className="sample-badge" role="note">Sample data</span>
+          ) : null}
           {spec.subtitle ? <div className="shell-sub">{spec.subtitle}</div> : null}
           {spec.source ? <SourceNote source={spec.source} /> : null}
         </div>
@@ -380,7 +378,12 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
       <main className="shell-main">
         {loading && !Object.keys(data).length && !Object.keys(errors).length ? (
           <Skeleton />
-        ) : hasRail ? (
+        ) : <>
+          {spec.hero ? errors[spec.hero.endpoint] ? <Card title={spec.hero.label}>
+            <DataState error onRetry={() => setRefresh(r => r + 1)} />
+          </Card> : loading ? <div className="card skeleton-card skeleton-hero" aria-busy="true" aria-label="Loading headline" />
+            : <Hero label={spec.hero.label} unit={spec.hero.unit} fact={heroFact(spec.hero, data, spec.widgets)} /> : null}
+          {hasRail ? (
           <div className="row row-rail">
             <FilterRail
               filters={spec.filters ?? []}
@@ -391,7 +394,8 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
           </div>
         ) : (
           body
-        )}
+          )}
+        </>}
       </main>
     </div>
   );

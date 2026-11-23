@@ -1,4 +1,5 @@
 ﻿import { ApiError } from '@/api/errors'
+import sampleDeck from '@/dashboard-kit/fixtures/presentation-input.json'
 import { parseMockDataset } from '@/mocks/dataset'
 import {
   EMPTY_REQUIREMENTS,
@@ -237,12 +238,27 @@ function computeStatus(state: MockState, project: Project): ProjectStatus {
   touchProject(project)
 
   if (phase.status === 'READY') {
+    // Mock mode has one committed synthetic deck; only the starter it belongs
+    // to may present it, so no project is shown another project's slides.
+    project.presentation = project.scenarioId === sampleDeck.snapshot.provenance.fixtureId
+      ? {
+          status: 'available',
+          schemaVersion: 1,
+          inputHash: 'mock-sample-fixture',
+          capturedAt: sampleDeck.snapshot.capturedAt,
+          scope: sampleDeck.snapshot.scope,
+        }
+      : {
+          status: 'unavailable',
+          reason: 'Mock mode includes a sample presentation only for the Budget versus actual starter.',
+        }
     ensureGenerationArtifacts(state, project)
     persist()
   }
 
   return {
     status: phase.status,
+    presentation: project.presentation,
     currentStep: phase.currentStep,
     completion: phase.completion,
     steps: buildSteps(phase.completed, phase.running),
@@ -280,7 +296,8 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
     if (method === 'POST') {
       const idea = String((body as { idea?: string } | undefined)?.idea ?? '').trim()
       if (!idea) throw new ApiError(400, 'idea is required')
-      return createProject(idea)
+      const scenarioId = (body as { scenarioId?: string | null } | undefined)?.scenarioId
+      return createProject(idea, scenarioId)
     }
     if (method !== 'GET') throw new ApiError(405, 'Method not allowed')
     return [...state.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -289,8 +306,8 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
   const project = findProject(projectId)
   if (!project) throw new ApiError(404, `Project ${projectId} not found`)
 
-  // POST /projects
-  if (segments.length === 1) {
+  // GET /projects/:id
+  if (segments.length === 2) {
     if (method !== 'GET') throw new ApiError(405, 'Method not allowed')
     return project
   }
@@ -438,6 +455,7 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
     generation.startedAt = Date.now()
     state.generation[projectId] = generation
     project.status = 'ARCHITECTING'
+    project.presentation = { status: 'unavailable', reason: 'Generation in progress.' }
     touchProject(project)
     return { projectId, status: 'STARTED' }
   }
@@ -445,6 +463,19 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
   // /projects/:id/status
   if (sub === 'status' && method === 'GET') {
     return computeStatus(state, project)
+  }
+
+  // Stored-input contract. The mock serves its one synthetic sample bundle only
+  // to the starter it was captured for (see computeStatus).
+  if (sub === 'presentation-input' && method === 'GET') {
+    computeStatus(state, project)
+    if (project.status !== 'READY') {
+      throw new ApiError(409, 'Presentation requires a READY project.')
+    }
+    if (project.presentation?.status !== 'available') {
+      throw new ApiError(409, project.presentation?.reason ?? 'Presentation unavailable for this project.')
+    }
+    return sampleDeck
   }
 
   // /projects/:id/artifacts
@@ -558,12 +589,17 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
   throw new ApiError(404, `Unknown mock endpoint: ${method} ${path}`)
 }
 
-export function createProject(idea: string): Project {
+export function createProject(idea: string, scenarioId: string | null = null): Project {
+  if (scenarioId !== null && (typeof scenarioId !== 'string' || scenarioId.length > 64 ||
+      !/^[a-z0-9][a-z0-9-]*$/.test(scenarioId))) {
+    throw new ApiError(422, 'Invalid scenarioId')
+  }
   const state = getState()
   const name = deriveProjectName(idea)
   const now = new Date().toISOString()
 
   const project: Project = {
+    scenarioId,
     id: newId(),
     name,
     description: idea.trim(),

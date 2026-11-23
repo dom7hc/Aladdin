@@ -74,11 +74,13 @@ class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
-class ProjectCreate(BaseModel):
+class ProjectCreate(CamelModel):
     idea: NonEmptyText = Field(max_length=4000)
+    scenario_id: str | None = Field(default=None, max_length=64, pattern=r"^[a-z0-9][a-z0-9-]*$")
 
 
 class RequirementData(CamelModel):
+    scenario_id: str | None = None
     problem: str = ""
     target_users: list[str] = []
     main_workflow: list[str] = []
@@ -116,7 +118,18 @@ class ChatMessageResponse(CamelModel):
     created_at: datetime
 
 
+class PresentationAvailability(CamelModel):
+    status: str
+    reason: str | None = None
+    schema_version: int | None = None
+    input_hash: str | None = None
+    captured_at: str | None = None
+    scope: str | None = None
+
+
 class ProjectResponse(CamelModel):
+    presentation: PresentationAvailability | None = None
+    scenario_id: str | None = None
     id: str
     name: str
     description: str
@@ -127,6 +140,7 @@ class ProjectResponse(CamelModel):
 
 
 class StatusResponse(CamelModel):
+    presentation: PresentationAvailability | None = None
     status: str
     current_step: str | None
     completion: int

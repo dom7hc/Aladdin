@@ -12,8 +12,6 @@
  * which are already checked against the series palette; the dark accent below
  * is derived from the light primary so it stays visible on them.
  */
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400..700&family=Open+Sans:wght@400..700&display=swap");
-
 :root {
   --surface-0: #FFFFFF;
   --surface-1: #F8FAFC;
@@ -27,8 +25,8 @@
 
   --critical: #DC2626;
 
-  --font-body: "Open Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Poppins", var(--font-body);
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: var(--font-body);
 }
 
 /* The accent applies only under the "design" theme, the kit's default.

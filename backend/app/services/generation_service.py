@@ -4,18 +4,16 @@ Simple state machine per Backend Plan §8/§9, with a bounded repair loop
 (MAX_REPAIR_ATTEMPTS) whose counter is persisted on the project document.
 """
 
-import json
+import asyncio
 import logging
-from dataclasses import asdict
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.agents.base import ArchitectAgent, DeveloperAgent, ReviewerAgent, TesterAgent
-from app.agents.llm import DATASET_PATH
 from app.config import MAX_REPAIR_ATTEMPTS
-from app.generation import renderer
-from app.ingest import spreadsheet
+from app.generation import prepare, renderer
+from app.presentation import service as presentation
 from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.project_repository import ProjectNotFoundError, ProjectRepository
 from app.schemas.project import dumps_json
@@ -51,12 +49,16 @@ class PocGenerationService:
 
     async def _run(self, project_id: str) -> None:
         project = await self.repo.get_or_raise(project_id)
+        await self.repo.update_fields(
+            project_id,
+            {"presentation": {"status": "unavailable", "reason": "Generation in progress."}},
+        )
+        await asyncio.to_thread(presentation.invalidate, project_id)
         requirements: dict[str, Any] = project["requirements"]["content"]
         # The user's file, if any: the agents see a summary (columns, types,
         # examples), and the generated backend gets every row in the workspace.
         dataset = await self.datasets.get(project_id)
-        if dataset is not None:
-            requirements = {**requirements, "dataset": spreadsheet.summary(dataset)}
+        requirements, data = prepare.prepare_inputs(requirements, dataset)
 
         # Architect
         await self._transition(project_id, "architect", "ARCHITECTING")
@@ -72,15 +74,7 @@ class PocGenerationService:
 
         # Developer + workspace
         ws.copy_template(project_id)
-        if dataset is not None:
-            ws.write_file(
-                project_id,
-                DATASET_PATH,
-                json.dumps(
-                    {"columns": [asdict(c) for c in dataset.columns], "rows": dataset.rows},
-                    ensure_ascii=False,
-                ),
-            )
+        prepare.write_dashboard(project_id, requirements, architecture, data)
         ws.workspace_dir(project_id).joinpath("requirements.md").write_text(
             renderer.render_requirements_md(project["name"], requirements), encoding="utf-8"
         )
@@ -121,8 +115,15 @@ class PocGenerationService:
         )
 
         await self._set_step(project_id, "tester", "COMPLETED")
+        availability = await asyncio.to_thread(presentation.publish, project_id, requirements)
         await self.repo.update_fields(
-            project_id, {"status": "READY", "current_step": None, "completion": 100}
+            project_id,
+            {
+                "status": "READY",
+                "current_step": None,
+                "completion": 100,
+                "presentation": availability,
+            },
         )
 
     async def _review_with_repair(

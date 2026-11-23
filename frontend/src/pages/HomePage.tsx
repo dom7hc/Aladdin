@@ -52,6 +52,7 @@ const SELECT_CLASS =
 export function HomePage() {
   const navigate = useNavigate()
   const [idea, setIdea] = useState('')
+  const [scenarioId, setScenarioId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusGroup | 'ALL'>('ALL')
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
@@ -88,7 +89,7 @@ export function HomePage() {
   const submit = () => {
     const trimmed = idea.trim()
     if (!trimmed) return
-    createProject.mutate(trimmed, {
+    createProject.mutate({ idea: trimmed, scenarioId }, {
       onSuccess: (project) => navigate(`/projects/${project.id}/chat`),
     })
   }
@@ -117,7 +118,7 @@ export function HomePage() {
             <div className="glass-card flex flex-col p-4 focus-within:border-primary/70 focus-within:ring-2 focus-within:ring-primary/30">
               <textarea
                 value={idea}
-                onChange={(event) => setIdea(event.target.value)}
+                onChange={(event) => { setIdea(event.target.value); setScenarioId(null) }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && !event.shiftKey) {
                     event.preventDefault()
@@ -151,7 +152,7 @@ export function HomePage() {
                   key={scenario.id}
                   type="button"
                   title={scenario.problem}
-                  onClick={() => setIdea(scenario.prompt)}
+                  onClick={() => { setIdea(scenario.prompt); setScenarioId(scenario.id) }}
                   className="max-w-full rounded-full border border-outline-variant/60 bg-surface-container-lowest px-3 py-1.5 text-[11px] text-on-surface-variant transition-colors hover:border-primary/50 hover:text-primary"
                 >
                   {scenario.title}

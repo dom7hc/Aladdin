@@ -1,0 +1,9 @@
+/* Offline-safe shared export tokens; no remote fonts or assets. */
+:root {
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: var(--font-body);
+}
+.presentation-root { font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+@media print {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
