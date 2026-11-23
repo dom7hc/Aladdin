@@ -16,6 +16,31 @@ test("line target is a named dashed SVG path and one annotation", () => {
   assert.equal((html.match(/data-annotation=/g) ?? []).length, 1);
   assert.ok(!html.includes("NaN"));
 });
+
+test("target labels occupy a reserved top lane, and annotated bars omit plain values", () => {
+  const html = renderToStaticMarkup(React.createElement(BarChart,
+    { rows, categoryField: "label", series, comparison, annotation, lowerIsBetter: true }));
+  assert.match(html, /data-target-label="true"/);
+  assert.match(html, /data-bar-tone="bad"/);
+  assert.match(html, /data-bar-tone="neutral"/);
+  assert.equal((html.match(/data-value-label=/g) ?? []).length, 1);
+  const long = renderToStaticMarkup(React.createElement(BarChart,
+    { rows: rows.map(r => ({ ...r, label: r.label.repeat(3) })), categoryField: "label", series }));
+  assert.match(long, /rotate\(-35/);
+  const highGood = renderToStaticMarkup(React.createElement(BarChart,
+    { rows, categoryField: "label", series, comparison, annotation, lowerIsBetter: false }));
+  assert.equal((highGood.match(/data-bar-tone="bad"/g) ?? []).length, 1);
+  const unknown = renderToStaticMarkup(React.createElement(BarChart,
+    { rows, categoryField: "label", series, comparison, annotation }));
+  assert.ok(!unknown.includes('data-bar-tone="bad"'));
+});
+test("ISO chart axes become short month names without changing raw tooltips", () => {
+  const html = renderToStaticMarkup(React.createElement(LineChart,
+    { rows: [{ date: "2026-05-31", actual: 10 }, { date: "2026-06-30", actual: 12 }],
+      xField: "date", series }));
+  assert.match(html, /<title>2026-05-31<\/title>May/);
+  assert.match(html, /<title>2026-06-30<\/title>Jun/);
+});
 test("bar target, ghost prior, long-label tooltip and negative bar geometry", () => {
   for (const kind of ["target", "prior"]) {
     const html = renderToStaticMarkup(React.createElement(BarChart, { rows: [{ ...rows[0], actual: -2 }, rows[1]],

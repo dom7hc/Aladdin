@@ -371,7 +371,7 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
     spec = normalize_spec(
         {
             "title": scenario.title if scenario else "Sample activity overview",
-            "subtitle": "Sample data · October 2026",
+            "subtitle": "October 2026",
             "layout": scenario.layout if scenario else "kpi-overview",
             "provenance": provenance,
             "widgets": [

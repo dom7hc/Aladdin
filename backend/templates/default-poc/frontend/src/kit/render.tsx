@@ -86,6 +86,7 @@ function WidgetView({
   onMutate,
   reference,
   loading,
+  lowerIsBetter,
 }: {
   widget: Widget;
   payload: Payload | undefined;
@@ -93,6 +94,7 @@ function WidgetView({
   onMutate: () => void;
   reference?: Payload;
   loading?: boolean;
+  lowerIsBetter?: boolean | null;
 }) {
   if (error) {
     // Only this widget is affected; the rest of the dashboard still renders.
@@ -141,6 +143,7 @@ function WidgetView({
             series={widget.series}
             comparison={comparison}
             annotation={facts.annotation}
+            lowerIsBetter={lowerIsBetter}
           />
         </Card>
       );
@@ -346,6 +349,9 @@ export function Dashboard({ spec: input }: { spec: DashboardSpec }) {
         onMutate={() => setRefresh((r) => r + 1)}
         reference={widget.comparison ? data[widget.comparison.endpoint] : undefined}
         loading={loading}
+        lowerIsBetter={spec.hero && (widget.kind === "bar" || widget.kind === "line") &&
+          widget.unit === spec.hero.unit && widget.series[0]?.label === spec.hero.label
+          ? spec.hero.lowerIsBetter : undefined}
       />
     </div>
   );
@@ -378,7 +384,7 @@ export function Dashboard({ spec: input }: { spec: DashboardSpec }) {
           {spec.hero ? errors[spec.hero.endpoint] ? <Card title={spec.hero.label}>
             <DataState error onRetry={() => setRefresh(r => r + 1)} />
           </Card> : loading ? <div className="card skeleton-card skeleton-hero" aria-busy="true" aria-label="Loading headline" />
-            : <Hero label={spec.hero.label} unit={spec.hero.unit} fact={heroFact(spec.hero, data)} /> : null}
+            : <Hero label={spec.hero.label} unit={spec.hero.unit} fact={heroFact(spec.hero, data, spec.widgets)} /> : null}
           {hasRail ? (
           <div className="row row-rail">
             <FilterRail

@@ -14,7 +14,7 @@ test("actual minus reference, explicit direction and named comparison", () => {
   assert.equal(f.relativePercent, 20);
   assert.equal(f.tone, "bad");
   assert.match(f.comparisonText, /Sample target 45 days/);
-  assert.match(f.insight, /9 days above Sample target/);
+  assert.match(f.insight, /No category or time breakdown/);
   assert.ok(f.insight.split(/\s+/).length <= 20);
   assert.equal(fact(40, 45).tone, "good");
   assert.equal(fact(45, 45).tone, "neutral");
@@ -24,7 +24,7 @@ test("percentage points are not relative percent", () => {
   const f = fact(4, 3, {}, { ...hero, unit: "%", comparison: { ...comparison, unit: "%" } });
   assert.equal(f.deltaText, "+1 pp");
   assert.equal(f.relativePercent, null);
-  assert.match(f.insight, /1 percentage points above/);
+  assert.equal(f.delta, 1);
 });
 test("zero and negative reference never imply a relative percentage", () => {
   for (const reference of [0, -10]) {
@@ -66,8 +66,61 @@ test("one deterministic annotation and computed takeaway, ties stable by label",
   assert.equal(f.annotation.label, "A");
   assert.equal(f.annotation.value, 8);
   assert.match(f.title, /A/);
-  assert.match(f.title, /3 days above Sample target/);
+  assert.match(f.title, /3 days above the sample target/);
   assert.equal(f.rows[0].__reference, 5);
+});
+
+const trend = { kind: "line", title: "Hiring trend", endpoint: "/api/series", xField: "date",
+  unit: "days", series: [{ label: "Time to hire", field: "actual" }],
+  comparison: { ...comparison, endpoint: "/api/series", keyField: "date" } };
+const driver = { ...widget, endpoint: "/api/groups", series: trend.series,
+  comparison: { ...comparison, endpoint: "/api/groups", keyField: "label" } };
+const seriesRows = [
+  { date: "2026-07-31", actual: 40, target: 45 },
+  { date: "2026-08-31", actual: 48, target: 45 },
+  { date: "2026-09-30", actual: 50, target: 45 },
+  { date: "2026-10-31", actual: 54, target: 45 },
+];
+const context = { "/api/metrics": { actual: 54, sampleCount: 12 }, "/api/ref": { target: 45 },
+  "/api/series": seriesRows, "/api/groups": [{ label: "Engineering", actual: 60, target: 45 },
+    { label: "Sales", actual: 48, target: 45 }] };
+test("hero adds computed category gap and monthly trend, not a causal claim", () => {
+  const f = heroFact(hero, context, [driver, trend]);
+  assert.match(f.insight, /Engineering has the largest gap \(\+15 days\)/);
+  assert.match(f.insight, /rose in 3 of 3 monthly changes/);
+  assert.ok(f.insight.split(/\s+/).length <= 20);
+  assert.equal(f.supporting.length, 2);
+  assert.equal(f.supporting[0].label, "September");
+  assert.equal(f.supporting[0].value, 50);
+  assert.ok(!/caused|because|drives/.test(f.insight));
+});
+test("monthly takeaway names months and continuous target run", () => {
+  const f = chartFacts(trend, seriesRows, seriesRows);
+  assert.match(f.title, /Time to hire has stayed above the sample target since August/);
+  assert.ok(!/2026-/.test(f.title));
+});
+test("unsorted, duplicate, missing and gapped months do not imply continuous trends", () => {
+  for (const rows of [[...seriesRows].reverse(), [...seriesRows, seriesRows[3]],
+    [seriesRows[0], seriesRows[2], seriesRows[3]],
+    seriesRows.map((r, i) => i === 1 ? { ...r, actual: null } : r)]) {
+    const f = heroFact(hero, { ...context, "/api/series": rows }, [trend]);
+    assert.ok(!/monthly changes/.test(f.insight));
+    assert.ok(!/since/.test(chartFacts(trend, rows, rows).title));
+  }
+});
+test("unrelated metrics and ambiguous categories cannot explain the headline", () => {
+  assert.match(heroFact(hero, context, [{ ...driver, unit: "USD" },
+    { ...trend, series: [{ label: "Other metric", field: "actual" }] }]).insight,
+    /No category or time breakdown/);
+  const duplicate = { ...context, "/api/groups": [...context["/api/groups"], context["/api/groups"][0]] };
+  assert.match(heroFact(hero, duplicate, [driver]).insight, /No category or time breakdown/);
+  assert.match(heroFact(hero, { ...context, "/api/metrics": { actual: 54, sampleCount: 1 } },
+    [driver, trend]).insight, /Too few/);
+});
+test("target equality and mixed directions use neutral exact trend counts", () => {
+  const rows = seriesRows.map((r, i) => ({ ...r, actual: [40, 40, 30, 54][i] }));
+  const f = heroFact(hero, { ...context, "/api/series": rows }, [trend]);
+  assert.match(f.insight, /rose in 1 of 3 monthly changes/);
 });
 test("single row, all zero, null and infinite series use neutral titles without invented zeros", () => {
   for (const rows of [[], [{ label: "A", actual: 3 }], [{ label: "A", actual: 0 }, { label: "B", actual: 0 }],

@@ -23,6 +23,7 @@ export function Hero({ label, unit, fact }: { label: string; unit?: string; fact
   const direction = fact.delta === null || fact.delta === 0 ? "■" : fact.delta > 0 ? "▲" : "▼";
   const verdict = fact.tone === "good" ? "better" : fact.tone === "bad" ? "worse" : "neutral";
   return <section className="card hero cell" data-hero={fact.id} aria-label={`Headline: ${label}`}>
+    <div className="hero-primary">
     <div className="hero-label" title={label}>{label}</div>
     <div className="hero-main">
       <div className="hero-value">{fact.valueText}<span className="hero-unit">{unit}</span></div>
@@ -34,6 +35,13 @@ export function Hero({ label, unit, fact }: { label: string; unit?: string; fact
       </div>
     </div>
     <p className="hero-insight">{fact.insight}</p>
+    </div>
+    {fact.supporting.length ? <div className="hero-supporting">
+      {fact.supporting.map(item => <div className="hero-support" key={item.note}>
+        <div className="tile-note">{item.note} · {item.label}</div>
+        <div className="hero-support-value">{formatNumber(item.value)} <small>{item.unit}</small></div>
+      </div>)}
+    </div> : null}
   </section>;
 }
 

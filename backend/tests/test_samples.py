@@ -30,7 +30,8 @@ def test_all_twenty_sample_contracts(scenario):
     assert len(dates) >= 6
     assert dates[-2:] == ["2026-09-30", "2026-10-31"]
     assert len({sum(r["date"] == d for r in fixture["rows"]) for d in dates}) == 1
-    assert fixture["spec"]["subtitle"] == "Sample data · October 2026"
+    # The provenance badge supplies the sample label; subtitle is period-only (B2).
+    assert fixture["spec"]["subtitle"] == "October 2026"
     table = next(w for w in fixture["spec"]["widgets"] if w["kind"] == "table")
     assert all(c["field"] != "id" for c in table["columns"])
     assert len(fixture["payloads"]["/api/records"]) == 4

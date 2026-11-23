@@ -10,6 +10,72 @@ const rounded = (value: number) => Number(value.toPrecision(12));
 const amount = (value: number, unit?: string) => `${formatNumber(value)}${unit ? ` ${unit}` : ""}`;
 const short = (text: string, limit = 32) => text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 
+/** Strict ISO calendar dates: no timezone shifts or invalid-day rollover. */
+export function monthLabel(value: unknown, abbreviated = false): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+  return date.toLocaleDateString("en-US", { month: abbreviated ? "short" : "long", timeZone: "UTC" });
+}
+const proseComparison = (label: string) => label === "Sample target" ? "the sample target" : short(label);
+function monthlyRows(widget: Widget, rows: Record<string, unknown>[]): boolean {
+  if (widget.kind !== "line" || rows.length < 2) return false;
+  const months = rows.map(row => {
+    const date = String(row[widget.xField]);
+    return monthLabel(date) && finite(row[widget.series[0]?.field]) !== null
+      ? Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) : null;
+  });
+  return months.every((m, i) => m !== null && (i === 0 || m === months[i - 1]! + 1));
+}
+export interface SupportingFact { label: string; value: number; unit?: string; note: string }
+
+function heroContext(binding: HeroBinding, data: Record<string, Payload>, widgets: Widget[]) {
+  const matching = widgets.filter(w => (w.kind === "line" || w.kind === "bar") &&
+    w.unit === binding.unit && w.series.length === 1 && w.series[0].label === binding.label);
+  const bar = matching.find(w => w.kind === "bar" && w.comparison?.kind === binding.comparison?.kind &&
+    w.comparison?.label === binding.comparison?.label && w.comparison?.unit === binding.unit);
+  let driver = "";
+  if (bar?.kind === "bar" && bar.comparison) {
+    const rows = asRows(data[bar.endpoint]);
+    const keys = rows.map(r => r[bar.categoryField]);
+    const refs = alignComparison(rows, data[bar.comparison.endpoint], bar.comparison);
+    // Partial or duplicate groups cannot establish a largest gap.
+    if (rows.length >= 2 && keys.every(k => typeof k === "string" && k.length) &&
+      new Set(keys).size === rows.length && refs.every(r => r !== null) &&
+      rows.every(r => finite(r[bar.series[0].field]) !== null)) {
+      const gaps = rows.map((r, i) => ({ label: String(r[bar.categoryField]),
+        delta: rounded(Number(r[bar.series[0].field]) - refs[i]!) }))
+        .filter(r => Number.isFinite(r.delta))
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.label.localeCompare(b.label, "en"));
+      const top = gaps[0];
+      if (top?.delta) driver = `${short(top.label, 18).split(/\s+/).slice(0, 2).join(" ")} has the largest gap (${top.delta > 0 ? "+" : ""}${amount(top.delta, binding.unit === "%" ? "pp" : binding.unit)})`;
+    }
+  }
+  const line = matching.find(w => {
+    const rows = asRows(data[w.endpoint]);
+    return monthlyRows(w, rows) &&
+      finite(rows[rows.length - 1]?.[w.kind === "line" ? w.series[0].field : ""]) === finite(asObject(data[binding.endpoint])[binding.field]);
+  });
+  const supporting: SupportingFact[] = [];
+  let trend = "";
+  if (line?.kind === "line") {
+    const rows = asRows(data[line.endpoint]);
+    const values = rows.map(r => Number(r[line.series[0].field]));
+    const changes = values.slice(1).map((v, i) => v - values[i]);
+    const up = changes.filter(v => v > 0).length, down = changes.filter(v => v < 0).length;
+    trend = up || down ? `${up >= down ? "rose" : "fell"} in ${Math.max(up, down)} of ${changes.length} monthly changes`
+      : `was unchanged across ${values.length} months`;
+    const peak = values.indexOf(Math.max(...values));
+    supporting.push(
+      { label: monthLabel(rows[rows.length - 2][line.xField])!, value: values[values.length - 2], unit: binding.unit, note: "Previous month" },
+      { label: monthLabel(rows[peak][line.xField])!, value: values[peak], unit: binding.unit, note: `Peak in ${values.length} months` },
+    );
+  }
+  const subject = short(binding.label, 24).split(/\s+/).slice(0, 3).join(" ").toLowerCase();
+  return { insight: driver ? `${driver}${trend ? `; ${subject} ${trend}` : ""}.`
+    : trend ? `${short(binding.label, 24)} ${trend}.` : "No category or time breakdown available.", supporting };
+}
+
 export interface HeroFact {
   id: string;
   actual: number | null;
@@ -22,9 +88,10 @@ export interface HeroFact {
   deltaText: string;
   comparisonText: string;
   insight: string;
+  supporting: SupportingFact[];
 }
 
-export function heroFact(binding: HeroBinding, data: Record<string, Payload>): HeroFact {
+export function heroFact(binding: HeroBinding, data: Record<string, Payload>, widgets: Widget[] = []): HeroFact {
   const source = asObject(data[binding.endpoint]);
   const actual = finite(source[binding.field]);
   const sampleCount = finite(source.sampleCount);
@@ -43,21 +110,19 @@ export function heroFact(binding: HeroBinding, data: Record<string, Payload>): H
   const difference = delta === null ? "" : `${delta > 0 ? "+" : ""}${amount(delta, deltaUnit)}`;
   const label = short(binding.label);
   const refLabel = short(c?.label ?? "");
+  const context = heroContext(binding, data, widgets);
   let insight = actual === null ? `${label}: no value available.`
     : tiny ? `Too few observations to assess ${label.toLowerCase()}.`
-    : delta === null ? `${label} is ${amount(actual, binding.unit)}; no comparison available.`
-    : delta === 0 ? `${label} matches ${refLabel}.`
-    : `${label} is ${amount(Math.abs(delta), binding.unit === "%" ? "percentage points" : binding.unit)} ${delta > 0 ? "above" : "below"} ${refLabel}.`;
+    : context.insight;
   // Bound copy even for a model-supplied, very verbose label; raw labels remain tooltips.
   if (insight.split(/\s+/).length > 20)
-    insight = delta === null ? `Current value: ${amount(actual ?? 0, binding.unit)}.`
-      : `${amount(Math.abs(delta), deltaUnit)} ${delta > 0 ? "above" : delta < 0 ? "below" : "from"} the stated comparison.`;
+    insight = "A longer category or time breakdown is available in the charts.";
   return {
     id: binding.id, actual, reference, delta, relativePercent, sampleCount, tone,
     valueText: actual === null ? "—" : formatNumber(actual),
     deltaText: difference,
     comparisonText: c && reference !== null ? `vs ${refLabel} ${amount(reference, c.unit)}` : "Comparison unavailable",
-    insight,
+    insight, supporting: actual === null || tiny ? [] : context.supporting,
   };
 }
 
@@ -122,12 +187,26 @@ export function chartFacts(widget: Widget, payload?: Payload, reference?: Payloa
   const notable = candidates[0];
   const diff = notable.delta;
   const unit = widget.unit === "%" ? "percentage points" : widget.unit;
-  const takeaway = diff !== null && c
-    ? `${short(notable.label)} ${diff === 0 ? "matches" : `is ${amount(Math.abs(diff), unit)} ${diff > 0 ? "above" : "below"}`} ${short(c.label)}`
+  const displayLabel = monthLabel(notable.label) ?? short(notable.label);
+  let takeaway = diff !== null && c
+    ? `${displayLabel} ${diff === 0 ? "matches" : `is ${amount(Math.abs(diff), unit)} ${diff > 0 ? "above" : "below"}`} ${proseComparison(c.label)}`
     : `${short(notable.label)} has ${notable.value === max ? "the highest" : "the lowest"} ${short(widget.series[0].label.toLowerCase())}: ${amount(notable.value, widget.unit)}`;
+  if (monthlyRows(widget, rows)) {
+    const last = rows.length - 1;
+    const finalDelta = aligned[last] === null ? null : Number(rows[last][field]) - aligned[last]!;
+    if (c?.kind === "target" && finalDelta !== null && finalDelta !== 0) {
+      let start = last;
+      while (start > 0 && aligned[start - 1] !== null &&
+        Math.sign(Number(rows[start - 1][field]) - aligned[start - 1]!) === Math.sign(finalDelta)) start--;
+      if (last > start) takeaway = `${short(widget.series[0].label)} has stayed ${finalDelta > 0 ? "above" : "below"} ${proseComparison(c.label)} since ${monthLabel(rows[start][key])}`;
+    } else {
+      const change = Number(rows[last][field]) - Number(rows[0][field]);
+      takeaway = `${short(widget.series[0].label)} ${change === 0 ? "is unchanged" : `is ${change > 0 ? "up" : "down"} ${amount(Math.abs(change), unit)}`} from ${monthLabel(rows[0][key])} to ${monthLabel(rows[last][key])}`;
+    }
+  }
   return {
     rows: clean, title: takeaway, comparison: c,
     annotation: { index: notable.index, label: notable.label, value: notable.value,
-      text: `${short(notable.label, 18).split(/\s+/).slice(0, 4).join(" ")} · ${formatNumber(notable.value)}` },
+      text: `${short(monthLabel(notable.label, true) ?? notable.label, 18).split(/\s+/).slice(0, 4).join(" ")} · ${formatNumber(notable.value)}` },
   };
 }

@@ -937,7 +937,15 @@ tbody input {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
-.hero { padding: 32px; border-top: 3px solid var(--accent); }
+.hero { padding: 32px; border-top: 3px solid var(--accent); display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 32px; align-items: center; }
+.hero-primary { min-width: 0; }
+.hero-supporting { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.hero-support { padding: 20px 16px; background: var(--surface-1); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.hero-support .tile-note { overflow-wrap: anywhere; }
+.hero-support-value { margin-top: 12px; font-size: 28px; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.hero-support-value small { font-size: 13px; font-weight: 400; color: var(--ink-2); }
+@media (max-width: 900px) { .hero { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
+@media (max-width: 450px) { .hero-supporting { grid-template-columns: minmax(0, 1fr); } }
 .hero-label { font-size: 14px; color: var(--text-muted); overflow-wrap: anywhere; }
 .hero-main { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 32px; margin: 12px 0; }
 .hero-value { font-size: clamp(48px, 5vw, 64px); line-height: 1.1; font-weight: 750; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }

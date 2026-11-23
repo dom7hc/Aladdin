@@ -13,13 +13,13 @@
 // greyscale and for colour-blind viewers.
 
 import { useEffect, useId, useState } from "react";
-import { finite } from "./insights";
+import { finite, monthLabel } from "./insights";
 import type { Annotation } from "./insights";
 
 interface ChartComparison { kind: "target" | "prior"; label: string; field: string }
-interface StoryProps { comparison?: ChartComparison; annotation?: Annotation | null }
+interface StoryProps { comparison?: ChartComparison; annotation?: Annotation | null; lowerIsBetter?: boolean | null }
 const axisLabel = (value: unknown, limit = 12) => {
-  const text = String(value ?? "");
+  const text = monthLabel(value, true) ?? String(value ?? "");
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 };
 
@@ -31,9 +31,20 @@ function PointNote({ annotation, x, y, width }: {
   return <g data-annotation={annotation.label}>
     <title>{`${annotation.label}: ${annotation.value}`}</title>
     <circle cx={x} cy={y} r={4} fill="var(--accent)" stroke="var(--surface-0)" strokeWidth={2} />
-    <line x1={x} x2={labelX} y1={y - 6} y2={20} stroke="var(--text-muted)" strokeDasharray="2 3" />
-    <text x={labelX} y={13} textAnchor="middle" className="chart-label">{annotation.text}</text>
+    <line x1={x} x2={labelX} y1={y - 6} y2={42} stroke="var(--ink-3)" strokeDasharray="2 3" />
+    <text x={labelX} y={35} textAnchor="middle" className="chart-label">{annotation.text}</text>
   </g>;
+}
+
+/** Dedicated top lane, separate from the annotation lane and all data marks. */
+function TargetLabel({ comparison, refs, width }: {
+  comparison?: ChartComparison; refs: number[]; width: number;
+}) {
+  if (comparison?.kind !== "target" || !refs.length) return null;
+  const constant = refs.every(v => v === refs[0]);
+  return <text data-target-label="true" className="chart-axis" x={width - 8} y={13} textAnchor="end">
+    {`${axisLabel(comparison.label, 24)} ${constant ? formatNumber(refs[0]) : `${formatNumber(Math.min(...refs))}–${formatNumber(Math.max(...refs))}`}`}
+  </text>;
 }
 
 const SERIES = [
@@ -249,7 +260,7 @@ export function LineChart({ rows, xField, series, comparison, annotation }: Line
   if (!nums.length) return <p className="empty">No values for this period. Try a different filter.</p>;
 
   const H = 260;
-  const pad = { top: 42, right: 54, bottom: 30, left: 48 };
+  const pad = { top: 64, right: 54, bottom: 30, left: 48 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
@@ -351,11 +362,7 @@ export function LineChart({ rows, xField, series, comparison, annotation }: Line
           opacity={comparison.kind === "prior" ? 0.35 : 0.8} strokeDasharray="7 5">
           <title>{comparison.label}</title>
         </path> : null}
-        {comparison?.kind === "target" && refs.length ? <text className="chart-axis"
-          stroke="var(--surface-0)" strokeWidth={3} paintOrder="stroke"
-          x={W - pad.right - 4} y={yAt(refs[refs.length - 1]) - 6} textAnchor="end">
-          {`${axisLabel(comparison.label, 18)} ${formatNumber(refs[refs.length - 1])}`}
-        </text> : null}
+        <TargetLabel comparison={comparison} refs={refs} width={W} />
         {series.map((s, si) => {
           const valid = rows.flatMap((r, i) => finite(r[s.field]) === null ? [] : [{ i, value: r[s.field] as number }]);
           if (!valid.length) return null;
@@ -380,9 +387,9 @@ export function LineChart({ rows, xField, series, comparison, annotation }: Line
               />
               <circle cx={last[0]} cy={last[1]} r={3.5} fill={seriesColor(si)} stroke="var(--surface-0)" strokeWidth={2} />
               {/* Direct label on the final point: identity without relying on colour. */}
-              <text className="chart-label" x={W - pad.right + 8} y={last[1] + 4} fill={seriesColor(si)}>
+              {!(si === 0 && annotation?.index === valid[valid.length - 1].i) ? <text data-value-label={valid[valid.length - 1].i} className="chart-label" x={W - pad.right + 8} y={last[1] + 4} fill={seriesColor(si)}>
                 {formatNumber(lastValue)}
-              </text>
+              </text> : null}
               {hoverIndex !== null && finite(rows[hoverIndex][s.field]) !== null ? (
                 <circle
                   cx={xAt(hoverIndex)}
@@ -423,15 +430,16 @@ function barPath(x: number, y: number, w: number, h: number, r: number): string 
   );
 }
 
-export function BarChart({ rows, categoryField, series, comparison, annotation }: BarProps) {
+export function BarChart({ rows, categoryField, series, comparison, annotation, lowerIsBetter }: BarProps) {
   const [tip, setTip] = useState<Tip | null>(null);
   const [hoverRow, setHoverRow] = useState<number | null>(null);
   const [box, W] = useWidth(720);
   const nums = series.flatMap(s => rows.flatMap(r => finite(r[s.field]) === null ? [] : [r[s.field] as number]));
   if (!nums.length) return <p className="empty">No values for this period. Try a different filter.</p>;
 
-  const H = 260;
-  const pad = { top: 42, right: 16, bottom: 34, left: 48 };
+  const angled = rows.some(r => String(r[categoryField] ?? "").length * 7 > (W - 64) / rows.length);
+  const H = angled ? 320 : 280;
+  const pad = { top: 64, right: 16, bottom: angled ? 96 : 34, left: 48 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
@@ -478,32 +486,42 @@ export function BarChart({ rows, categoryField, series, comparison, annotation }
               opacity={hoverRow === null || hoverRow === ri ? 1 : 0.45}
               onMouseEnter={() => setHoverRow(ri)}
             >
-              <text className="chart-axis" x={pad.left + groupW * ri + groupW / 2} y={H - 12} textAnchor="middle">
-                <title>{String(row[categoryField] ?? "")}</title>{axisLabel(row[categoryField], Math.max(3, Math.floor(groupW / 7)))}
+              <text data-category-label={ri} className="chart-axis"
+                x={pad.left + groupW * ri + groupW / 2} y={H - pad.bottom + 18}
+                transform={angled ? `rotate(-35 ${pad.left + groupW * ri + groupW / 2} ${H - pad.bottom + 18})` : undefined}
+                textAnchor={angled ? "end" : "middle"}>
+                <title>{String(row[categoryField] ?? "")}</title>{axisLabel(row[categoryField], angled ? Math.min(22, Math.floor((groupW * ri + groupW / 2 + 40) / 5.8)) : Math.max(3, Math.floor(groupW / 7)))}
               </text>
               {series.map((s, si) => {
                 const value = finite(row[s.field]);
                 if (value === null) return null;
                 const x = groupX + si * (barW + 2);
                 const y = yAt(value);
+                const ref = comparison ? finite(row[comparison.field]) : null;
+                const bad = ref !== null && lowerIsBetter != null &&
+                  (lowerIsBetter ? value > ref : value < ref);
+                const color = bad ? "var(--critical)" : seriesColor(si);
                 return (
                   <g key={s.field}>
                     <path
                       d={barPath(x, Math.min(y, yAt(0)), barW, Math.abs(yAt(0) - y), 5)}
-                      fill={seriesColor(si)}
+                      data-bar-tone={bad ? "bad" : "neutral"}
+                      fill={color}
+                      stroke={annotation?.index === ri && si === 0 ? "var(--ink-1)" : undefined}
+                      strokeWidth={annotation?.index === ri && si === 0 ? 2 : undefined}
                       onMouseMove={(event) =>
                         setTip({
                           x: event.clientX,
                           y: event.clientY,
                           rows: [
                             { label: String(row[categoryField] ?? ""), value: "" },
-                            { label: s.label, value: formatNumber(value), color: seriesColor(si) },
+                            { label: s.label, value: formatNumber(value), color },
                           ],
                         })
                       }
                     />
-                    {labelled ? (
-                      <text className="chart-label" x={x + barW / 2} y={y + (value < 0 ? 14 : -6)} textAnchor="middle">
+                    {labelled && !(si === 0 && annotation?.index === ri) ? (
+                      <text data-value-label={ri} className="chart-label" x={x + barW / 2} y={y + (value < 0 ? 14 : -6)} textAnchor="middle">
                         {formatNumber(value)}
                       </text>
                     ) : null}
@@ -529,11 +547,7 @@ export function BarChart({ rows, categoryField, series, comparison, annotation }
         <PointNote annotation={annotation}
           x={annotation ? pad.left + groupW * (annotation.index + 0.5) : 0}
           y={annotation ? yAt(annotation.value) : 0} width={W} />
-        {comparison?.kind === "target" && refs.length ? <text className="chart-axis"
-          stroke="var(--surface-0)" strokeWidth={3} paintOrder="stroke"
-          x={W - pad.right - 4} y={yAt(refs[refs.length - 1]) - 6} textAnchor="end">
-          {`${axisLabel(comparison.label, 18)} ${formatNumber(refs[refs.length - 1])}`}
-        </text> : null}
+        <TargetLabel comparison={comparison} refs={refs} width={W} />
       </svg>
       <Legend items={[...series.map((s, i) => ({ label: s.label, color: seriesColor(i) })),
         ...(comparison && refs.length ? [{ label: comparison.label, color: "var(--series-1)", dash: "7 5" }] : [])]} />
