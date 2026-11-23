@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { fetchSourceBundle, getArtifacts, getPresentationInput } from '@/api/artifactApi'
@@ -36,6 +37,17 @@ function presentationHtml(id: string, inputHash: string): Promise<string> {
     rendered.set(key, html)
   }
   return html
+}
+
+/**
+ * Render the slides while this page is visible. Charts measure themselves on
+ * animation frames, which stop once a new tab hides this one, so rendering
+ * only after the click left "Open presentation" on a blank tab.
+ */
+export function usePrefetchPresentation(id: string, inputHash: string | null | undefined, enabled: boolean) {
+  useEffect(() => {
+    if (enabled && id && inputHash) presentationHtml(id, inputHash).catch(() => {})
+  }, [id, inputHash, enabled])
 }
 
 const htmlBlob = (html: string) => new Blob([html], { type: 'text/html;charset=utf-8' })

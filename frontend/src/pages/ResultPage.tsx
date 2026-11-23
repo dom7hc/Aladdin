@@ -16,6 +16,7 @@ import {
   useDownloadPresentation,
   useDownloadSource,
   useOpenPresentation,
+  usePrefetchPresentation,
 } from '@/hooks/useArtifacts'
 import { usePreviewQuery, useStartPreview, useStopPreview } from '@/hooks/usePreview'
 import type { Artifact, ArtifactType, PreviewState } from '@/types'
@@ -70,6 +71,7 @@ export function ResultPage() {
   const openDeck = useOpenPresentation(id ?? '', presentation?.inputHash)
   const downloadDeck = useDownloadPresentation(id ?? '', presentation?.inputHash, projectQuery.data?.name ?? '')
   const deckReady = presentation?.status === 'available'
+  usePrefetchPresentation(id ?? '', presentation?.inputHash, deckReady)
   const deckNote = deckReady
     ? [
         presentation?.capturedAt
