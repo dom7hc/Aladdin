@@ -84,3 +84,22 @@ test("capabilities are derived from the dashboard and read naturally", () => {
   assert.ok(slide.items.some(i => /^Compare .+ across .+/.test(i)));
   assert.ok(slide.items.every(i => !/ and .+ and more/.test(i) && !/seeded|KPI overview/i.test(i)));
 });
+
+test("a chart of another metric is never coloured good or bad, exactly like the dashboard", async () => {
+  const { chartDirection } = await import("./insights.ts");
+  const input = fixture();
+  const bar = input.spec.widgets.find(w => w.kind === "bar");
+  const other = { ...bar, id: "other", unit: "items", series: [{ label: "Something else", field: bar.series[0].field }] };
+  input.spec.widgets = [other];
+  assert.equal(chartDirection(input.spec, other), undefined);
+  assert.equal(chartDirection(fixture().spec, bar), fixture().spec.hero.lowerIsBetter);
+  const html = render(input);
+  assert.ok(!html.includes("var(--critical)"), "no bad bars on an unrelated chart");
+  const own = render(fixture());
+  assert.ok(own.includes("var(--critical)") || !fixture().snapshot.endpoints[bar.endpoint].some(r => r), "hero metric keeps its colours");
+});
+
+test("the title slide states the snapshot scope", () => {
+  const input = fixture();
+  assert.ok(render(input).includes(escapeHtml(input.snapshot.scope)));
+});

@@ -16,6 +16,7 @@ def test_shared_presentation():
             "./scripts/register-ts-tests.mjs",
             "--test",
             "src/dashboard-kit/presentation.test.mjs",
+            "src/presentation/openInNewTab.test.mjs",
         ],
         cwd=ROOT / "frontend",
         capture_output=True,

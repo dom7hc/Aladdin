@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart, DonutChart, LineChart } from "./charts";
 import { Icon } from "./icons";
 import { asRows, asObject, trustworthyDelta, endpointsFor, normalizeSpec } from "./normalize";
-import { chartFacts, heroFact, finite } from "./insights";
+import { chartDirection, chartFacts, heroFact, finite } from "./insights";
 import type { DashboardSpec, Widget } from "./types";
 import {
   Card,
@@ -349,9 +349,7 @@ export function Dashboard({ spec: input }: { spec: DashboardSpec }) {
         onMutate={() => setRefresh((r) => r + 1)}
         reference={widget.comparison ? data[widget.comparison.endpoint] : undefined}
         loading={loading}
-        lowerIsBetter={spec.hero && (widget.kind === "bar" || widget.kind === "line") &&
-          widget.unit === spec.hero.unit && widget.series[0]?.label === spec.hero.label
-          ? spec.hero.lowerIsBetter : undefined}
+        lowerIsBetter={chartDirection(spec, widget)}
       />
     </div>
   );

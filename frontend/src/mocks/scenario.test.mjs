@@ -27,3 +27,19 @@ test("mock serves a single project and, once READY, its sample presentation inpu
   const input = call("GET", `/projects/${p.id}/presentation-input`);
   assert.equal(input.snapshot.provenance.kind, "sample");
 });
+
+test("mock never shows one starter another starter's slides", async () => {
+  const { handleMockRequest, createProject: create } = await import("./handlers.ts");
+  const { getState } = await import("./store.ts");
+  const call = (method, path, body = {}) => handleMockRequest({ method, path, body, headers: {} });
+  const p = create("How healthy is our hiring pipeline", "hiring-pipeline");
+  call("POST", `/projects/${p.id}/chat`, { message: "Roles stay open for months and nobody knows the bottleneck." });
+  call("POST", `/projects/${p.id}/requirements/autofill`);
+  call("POST", `/projects/${p.id}/requirements/finalize`);
+  call("POST", `/projects/${p.id}/generate`);
+  getState().generation[p.id].startedAt = Date.now() - 60_000;
+  const status = call("GET", `/projects/${p.id}/status`);
+  assert.equal(status.presentation.status, "unavailable");
+  assert.match(status.presentation.reason, /only for the Budget versus actual/);
+  assert.throws(() => call("GET", `/projects/${p.id}/presentation-input`), /only for the Budget/);
+});

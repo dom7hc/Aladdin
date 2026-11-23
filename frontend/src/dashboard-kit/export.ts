@@ -38,6 +38,7 @@ body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -w
 .slide-kicker { text-transform: uppercase; letter-spacing: .12em; font-size: 20px; font-weight: 700;
   color: var(--accent, #2563eb); margin: 0 0 24px; }
 .slide-lede { font-size: 30px; color: var(--ink-2, #444); margin: 32px 0 0; }
+.slide-scope { font-size: 20px; margin: 16px 0 0; opacity: .8; }
 .slide-pill { align-self: flex-start; font-size: 18px; font-weight: 700; padding: 8px 18px; border-radius: 999px;
   background: var(--accent-soft, #e8efff); color: var(--accent, #2563eb); }
 .slide.slide-title { background: linear-gradient(135deg, var(--accent, #2563eb), color-mix(in srgb, var(--accent, #2563eb) 55%, #050814)); color: #fff; }

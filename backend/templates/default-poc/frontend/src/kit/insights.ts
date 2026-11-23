@@ -1,5 +1,5 @@
 /** Pure, shared facts. Text never infers causes or guesses favourable direction. */
-import type { Comparison, HeroBinding, Payload, Widget } from "./types";
+import type { Comparison, DashboardSpec, HeroBinding, Payload, Widget } from "./types";
 import { asObject, asRows } from "./normalize";
 import { formatNumber } from "./format";
 
@@ -209,4 +209,16 @@ export function chartFacts(widget: Widget, payload?: Payload, reference?: Payloa
     annotation: { index: notable.index, label: notable.label, value: notable.value,
       text: `${short(monthLabel(notable.label, true) ?? notable.label, 18).split(/\s+/).slice(0, 4).join(" ")} · ${formatNumber(notable.value)}` },
   };
+}
+
+/**
+ * Whether lower values are better for a chart: only when the chart plots the
+ * hero's own metric (same unit and first series label). Any other chart has no
+ * known direction, so its bars are never coloured good or bad. Shared by the
+ * dashboard and the presentation so both colour the same bars.
+ */
+export function chartDirection(spec: DashboardSpec, widget: Widget): boolean | null | undefined {
+  const hero = spec.hero;
+  if (!hero || (widget.kind !== "bar" && widget.kind !== "line")) return undefined;
+  return widget.unit === hero.unit && widget.series[0]?.label === hero.label ? hero.lowerIsBetter : undefined;
 }

@@ -71,9 +71,12 @@ export function ResultPage() {
   const downloadDeck = useDownloadPresentation(id ?? '', presentation?.inputHash, projectQuery.data?.name ?? '')
   const deckReady = presentation?.status === 'available'
   const deckNote = deckReady
-    ? presentation?.capturedAt
-      ? `Slides from the snapshot of ${new Date(presentation.capturedAt).toLocaleString()}`
-      : 'Slides from the generation snapshot'
+    ? [
+        presentation?.capturedAt
+          ? `Slides from the snapshot of ${new Date(presentation.capturedAt).toLocaleString()}`
+          : 'Slides from the generation snapshot',
+        presentation?.scope,
+      ].filter(Boolean).join(' · ')
     : (presentation?.reason ?? 'Slides are not available for this project.')
   const deckError = openDeck.error ?? downloadDeck.error
   const previewQuery = usePreviewQuery(id)

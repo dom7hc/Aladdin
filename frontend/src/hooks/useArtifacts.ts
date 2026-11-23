@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { fetchSourceBundle, getArtifacts, getPresentationInput } from '@/api/artifactApi'
 import { triggerDownload } from '@/lib/download'
+import { openInNewTab } from '@/presentation/openInNewTab'
 
 import { queryKeys } from './queryKeys'
 
@@ -41,20 +42,16 @@ const htmlBlob = (html: string) => new Blob([html], { type: 'text/html;charset=u
 
 export function useOpenPresentation(id: string, inputHash: string | null | undefined) {
   return useMutation({
-    mutationFn: async () => {
-      // Open the tab inside the click, or the browser blocks it as a pop-up.
-      const tab = window.open('', '_blank')
-      if (tab) tab.opener = null
-      try {
-        const url = URL.createObjectURL(htmlBlob(await presentationHtml(id, inputHash ?? '')))
-        if (tab) tab.location.href = url
-        else window.location.assign(url)
-        setTimeout(() => URL.revokeObjectURL(url), 60_000)
-      } catch (error) {
-        tab?.close()
-        throw error
-      }
-    },
+    mutationFn: () =>
+      openInNewTab(
+        () => window.open('', '_blank'),
+        () => presentationHtml(id, inputHash ?? ''),
+        (html) => {
+          const url = URL.createObjectURL(htmlBlob(html))
+          setTimeout(() => URL.revokeObjectURL(url), 60_000)
+          return url
+        },
+      ),
   })
 }
 

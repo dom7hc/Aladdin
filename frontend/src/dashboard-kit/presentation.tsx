@@ -7,7 +7,7 @@
 
 import { BarChart, DonutChart, LineChart } from "./charts";
 import { formatNumber } from "./format";
-import { chartFacts, heroFact } from "./insights";
+import { chartDirection, chartFacts, heroFact } from "./insights";
 import type { HeroFact } from "./insights";
 import { asRows } from "./normalize";
 import type { DashboardSnapshot, DashboardSpec, Payload, Widget } from "./types";
@@ -147,6 +147,7 @@ function SlideView({ slide, input }: { slide: Slide; input: PresentationInput })
         {sample && <span className="slide-pill">Sample data</span>}
         <h1>{slide.title}</h1>
         {slide.audience && <p className="slide-lede">For {slide.audience}</p>}
+        {input.snapshot.scope && <p className="slide-scope">{input.snapshot.scope}</p>}
       </div>;
     case "problem":
       return <div className="slide-body">
@@ -178,9 +179,7 @@ function SlideView({ slide, input }: { slide: Slide; input: PresentationInput })
       return <div className="slide-body slide-chart">
         <h2>{slide.title}</h2>
         <div className="slide-plot">
-          <ChartBody widget={slide.widget} data={data}
-            lowerIsBetter={input.spec.hero && (slide.widget.kind === "bar" || slide.widget.kind === "line")
-              ? input.spec.hero.lowerIsBetter : undefined} />
+          <ChartBody widget={slide.widget} data={data} lowerIsBetter={chartDirection(input.spec, slide.widget)} />
         </div>
       </div>;
     case "capabilities":

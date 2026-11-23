@@ -238,15 +238,20 @@ function computeStatus(state: MockState, project: Project): ProjectStatus {
   touchProject(project)
 
   if (phase.status === 'READY') {
-    // Mock mode only: every READY mock project presents the committed synthetic
-    // sample bundle, labelled as sample data in every slide.
-    project.presentation = {
-      status: 'available',
-      schemaVersion: 1,
-      inputHash: 'mock-sample-fixture',
-      capturedAt: sampleDeck.snapshot.capturedAt,
-      scope: sampleDeck.snapshot.scope,
-    }
+    // Mock mode has one committed synthetic deck; only the starter it belongs
+    // to may present it, so no project is shown another project's slides.
+    project.presentation = project.scenarioId === sampleDeck.snapshot.provenance.fixtureId
+      ? {
+          status: 'available',
+          schemaVersion: 1,
+          inputHash: 'mock-sample-fixture',
+          capturedAt: sampleDeck.snapshot.capturedAt,
+          scope: sampleDeck.snapshot.scope,
+        }
+      : {
+          status: 'unavailable',
+          reason: 'Mock mode includes a sample presentation only for the Budget versus actual starter.',
+        }
     ensureGenerationArtifacts(state, project)
     persist()
   }
@@ -460,8 +465,8 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
     return computeStatus(state, project)
   }
 
-  // Stored-input contract. The mock serves one synthetic sample bundle (sample
-  // provenance, never presented as the project's own measurements).
+  // Stored-input contract. The mock serves its one synthetic sample bundle only
+  // to the starter it was captured for (see computeStatus).
   if (sub === 'presentation-input' && method === 'GET') {
     computeStatus(state, project)
     if (project.status !== 'READY') {
