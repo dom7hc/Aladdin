@@ -31,7 +31,7 @@ app = FastAPI(lifespan=lifespan)
 def metrics():
     assert app.state.ready
     assert "DEEPSEEK_API_KEY" not in os.environ
-    assert "POC_DB" not in os.environ
+    assert ".capture-" in os.environ["POC_DB"]
     return {"value": json.loads(Path("data/dataset.json").read_text())["rows"][0]["value"]}
 """
 
@@ -51,7 +51,7 @@ def simple_spec():
     return spec
 
 
-def test_lifespan_deduplication_environment_and_no_db(tmp_path, monkeypatch):
+def test_lifespan_deduplication_environment_and_throwaway_db(tmp_path, monkeypatch):
     source = app_dir(tmp_path, SOURCE)
     monkeypatch.setenv("DEEPSEEK_API_KEY", "test-not-a-secret")
     result = snapshot.capture(source, simple_spec())
@@ -59,6 +59,29 @@ def test_lifespan_deduplication_environment_and_no_db(tmp_path, monkeypatch):
     assert (source / "backend/closed").read_text() == "yes"
     assert not list(tmp_path.rglob("*.db"))
     assert not list(tmp_path.glob(".capture-*"))
+
+
+# Shaped like real LLM output on production: the DB is opened at import with a
+# default the server cannot create (/data/poc.db). Here the default sits inside a
+# file, so it is unusable on every OS, not only on the Linux server.
+IMPORT_TIME_DB = """
+import os, sqlite3
+from fastapi import FastAPI
+DB = os.environ.get("POC_DB", os.path.join("data", "dataset.json", "poc.db"))
+os.makedirs(os.path.dirname(DB) or ".", exist_ok=True)
+sqlite3.connect(DB).execute("create table if not exists t (v int)").connection.commit()
+app = FastAPI()
+@app.get("/api/metrics")
+def metrics():
+    return {"value": 7}
+"""
+
+
+def test_import_time_db_with_unusable_default_still_captures(tmp_path):
+    source = app_dir(tmp_path, IMPORT_TIME_DB)
+    result = snapshot.capture(source, simple_spec())
+    assert result["endpoints"] == {"/api/metrics": {"value": 7}}
+    assert not list(tmp_path.rglob("*.db")), "throwaway DB removed with the temp dir"
 
 
 @pytest.mark.parametrize("path", ["https://host/api/a", "/api/../secret", "/api/a?q=x"])
