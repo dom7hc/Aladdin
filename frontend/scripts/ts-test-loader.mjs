@@ -13,6 +13,11 @@ export async function resolve(specifier, context, next) {
   }
 }
 export async function load(url, context, next) {
+  // Vite imports JSON without attributes; mirror that for the app modules under test.
+  if (url.endsWith(".json") && url.startsWith(src.href)) return {
+    format: "module", shortCircuit: true,
+    source: `export default ${await readFile(new URL(url), "utf8")};`,
+  };
   if (/\.tsx?$/.test(url)) return {
     format: "module", shortCircuit: true,
     source: ts.transpileModule(await readFile(new URL(url), "utf8"), {

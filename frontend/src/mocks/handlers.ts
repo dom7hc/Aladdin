@@ -1,4 +1,5 @@
 ﻿import { ApiError } from '@/api/errors'
+import sampleDeck from '@/dashboard-kit/fixtures/presentation-input.json'
 import { parseMockDataset } from '@/mocks/dataset'
 import {
   EMPTY_REQUIREMENTS,
@@ -237,9 +238,14 @@ function computeStatus(state: MockState, project: Project): ProjectStatus {
   touchProject(project)
 
   if (phase.status === 'READY') {
+    // Mock mode only: every READY mock project presents the committed synthetic
+    // sample bundle, labelled as sample data in every slide.
     project.presentation = {
-      status: 'unavailable',
-      reason: 'No stored presentation snapshot in this mock project.',
+      status: 'available',
+      schemaVersion: 1,
+      inputHash: 'mock-sample-fixture',
+      capturedAt: sampleDeck.snapshot.capturedAt,
+      scope: sampleDeck.snapshot.scope,
     }
     ensureGenerationArtifacts(state, project)
     persist()
@@ -295,8 +301,8 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
   const project = findProject(projectId)
   if (!project) throw new ApiError(404, `Project ${projectId} not found`)
 
-  // POST /projects
-  if (segments.length === 1) {
+  // GET /projects/:id
+  if (segments.length === 2) {
     if (method !== 'GET') throw new ApiError(405, 'Method not allowed')
     return project
   }
@@ -454,14 +460,17 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
     return computeStatus(state, project)
   }
 
-  // Stored-input contract; realistic available mock bundles land with T014.
-  // Never pretend a legacy mock deck contains captured endpoint measurements.
+  // Stored-input contract. The mock serves one synthetic sample bundle (sample
+  // provenance, never presented as the project's own measurements).
   if (sub === 'presentation-input' && method === 'GET') {
     computeStatus(state, project)
     if (project.status !== 'READY') {
       throw new ApiError(409, 'Presentation requires a READY project.')
     }
-    throw new ApiError(409, project.presentation?.reason ?? 'Presentation unavailable for this project.')
+    if (project.presentation?.status !== 'available') {
+      throw new ApiError(409, project.presentation?.reason ?? 'Presentation unavailable for this project.')
+    }
+    return sampleDeck
   }
 
   // /projects/:id/artifacts

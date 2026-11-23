@@ -10,3 +10,20 @@ test("mock creation preserves explicit scenario and free text", () => {
   assert.equal(createProject("Custom", "custom-role").scenarioId, "custom-role");
   for (const bad of ["", "../x", 123]) assert.throws(() => createProject("x", bad));
 });
+
+test("mock serves a single project and, once READY, its sample presentation input", async () => {
+  const { handleMockRequest, createProject: create } = await import("./handlers.ts");
+  const { getState } = await import("./store.ts");
+  const call = (method, path, body = {}) => handleMockRequest({ method, path, body, headers: {} });
+  const p = create("Budget review for cost centres", "budget-vs-actual");
+  assert.equal(call("GET", `/projects/${p.id}`).id, p.id);
+  call("POST", `/projects/${p.id}/chat`, { message: "Owners learn about overspend weeks after month end." });
+  call("POST", `/projects/${p.id}/requirements/autofill`);
+  call("POST", `/projects/${p.id}/requirements/finalize`);
+  call("POST", `/projects/${p.id}/generate`);
+  assert.throws(() => call("GET", `/projects/${p.id}/presentation-input`), /READY/);
+  getState().generation[p.id].startedAt = Date.now() - 60_000;
+  assert.equal(call("GET", `/projects/${p.id}/status`).presentation.status, "available");
+  const input = call("GET", `/projects/${p.id}/presentation-input`);
+  assert.equal(input.snapshot.provenance.kind, "sample");
+});
