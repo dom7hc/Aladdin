@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -6,6 +6,7 @@ import { ProjectCard } from '@/components/projects/ProjectCard'
 import { Button } from '@/components/ui/Button'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
+import { uploadDataset } from '@/api/projectApi'
 import { useHomeContent } from '@/hooks/useContent'
 import { useCreateProject, useProjectsQuery, useScenariosQuery } from '@/hooks/useProjects'
 import { HOME_DEFAULTS } from '@/mocks/seedContent'
@@ -53,6 +54,11 @@ export function HomePage() {
   const navigate = useNavigate()
   const [idea, setIdea] = useState('')
   const [scenarioId, setScenarioId] = useState<string | null>(null)
+  // Optional data file, uploaded right after the project is created.
+  const [file, setFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadFailed, setUploadFailed] = useState<{ projectId: string; message: string } | null>(null)
+  const fileInput = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusGroup | 'ALL'>('ALL')
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
@@ -89,10 +95,26 @@ export function HomePage() {
   const submit = () => {
     const trimmed = idea.trim()
     if (!trimmed) return
+    setUploadFailed(null)
     createProject.mutate({ idea: trimmed, scenarioId }, {
-      onSuccess: (project) => navigate(`/projects/${project.id}/chat`),
+      onSuccess: async (project) => {
+        const chat = `/projects/${project.id}/chat`
+        if (!file) return navigate(chat)
+        setUploading(true)
+        try {
+          await uploadDataset(project.id, file)
+          navigate(chat)
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Upload failed.'
+          setUploadFailed({ projectId: project.id, message })
+        } finally {
+          setUploading(false)
+        }
+      },
     })
   }
+
+  const busy = createProject.isPending || uploading
 
   return (
     <AppLayout>
@@ -129,14 +151,50 @@ export function HomePage() {
                 placeholder={text.placeholder}
                 className="w-full resize-none border-none bg-transparent p-2 text-body-md text-on-surface outline-none placeholder:text-outline/70"
               />
-              <div className="mt-2 flex items-center justify-end border-t border-outline-variant/40 pt-3">
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".csv,.xlsx,.pdf,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(event) => {
+                  setFile(event.target.files?.[0] ?? null)
+                  event.target.value = ''
+                }}
+              />
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-outline-variant/40 pt-3">
+                {file ? (
+                  <div className="flex min-w-0 items-center gap-1.5 rounded-full border border-outline-variant/60 bg-surface-container-lowest py-1 pl-2.5 pr-1 text-[11px] text-on-surface">
+                    <MaterialIcon name="table_view" size={14} className="text-primary" />
+                    <span className="truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setFile(null)}
+                      disabled={busy}
+                      aria-label="Remove file"
+                      className="flex rounded-full p-0.5 text-outline hover:text-error"
+                    >
+                      <MaterialIcon name="close" size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    icon="attach_file"
+                    onClick={() => fileInput.current?.click()}
+                    disabled={busy}
+                    title="CSV, Excel or PDF · up to 5 MB"
+                    className="px-3 py-2 text-xs"
+                  >
+                    Attach data
+                  </Button>
+                )}
                 <Button
                   onClick={submit}
-                  loading={createProject.isPending}
-                  trailingIcon={createProject.isPending ? undefined : 'arrow_forward'}
-                  className="px-4 py-2 text-xs"
+                  loading={busy}
+                  trailingIcon={busy ? undefined : 'arrow_forward'}
+                  className="shrink-0 px-4 py-2 text-xs"
                 >
-                  {createProject.isPending ? 'Synthesizing…' : 'Start Building'}
+                  {uploading ? 'Uploading…' : createProject.isPending ? 'Synthesizing…' : 'Start Building'}
                 </Button>
               </div>
             </div>
@@ -161,6 +219,20 @@ export function HomePage() {
               ))}
             </div>
           </div>
+
+          {uploadFailed && (
+            <p className="mt-4 text-center text-sm text-error">
+              The project was created, but the file could not be attached: {uploadFailed.message}{' '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() => navigate(`/projects/${uploadFailed.projectId}/chat`)}
+              >
+                Continue to the project
+              </button>{' '}
+              and attach it there.
+            </p>
+          )}
 
           {createProject.isError && (
             <p className="mt-4 text-sm text-error">
