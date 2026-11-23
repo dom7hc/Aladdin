@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { createProject, getScenarios, listProjects } from '@/api/projectApi'
+import { createProject, deleteProject, getScenarios, listProjects } from '@/api/projectApi'
 
 import { queryKeys } from './queryKeys'
 
@@ -16,6 +16,16 @@ export function useCreateProject() {
   return useMutation({
     mutationFn: ({ idea, scenarioId }: { idea: string; scenarioId?: string | null }) =>
       createProject(idea, scenarioId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
+    },
+  })
+}
+
+export function useDeleteProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => deleteProject(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     },

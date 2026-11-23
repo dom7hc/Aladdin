@@ -79,3 +79,22 @@ def test_mock_scenario_contract():
         timeout=30,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_delete_project_removes_it_and_its_chat(client, db, project_id):
+    client.post(f"/api/projects/{project_id}/chat", json={"message": "Finance team"})
+    assert client.delete(f"/api/projects/{project_id}").status_code == 204
+    assert client.get(f"/api/projects/{project_id}").status_code == 404
+    assert project_id not in [p["id"] for p in client.get("/api/projects").json()]
+
+
+def test_delete_unknown_project_returns_404(client):
+    assert client.delete("/api/projects/000000000000000000000000").status_code == 404
+
+
+async def test_delete_refused_while_generating(client, db, project_id):
+    from app.repositories.project_repository import ProjectRepository
+
+    await ProjectRepository(db).update_fields(project_id, {"status": "GENERATING"})
+    assert client.delete(f"/api/projects/{project_id}").status_code == 409
+    assert client.get(f"/api/projects/{project_id}").status_code == 200

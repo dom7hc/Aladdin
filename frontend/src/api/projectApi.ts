@@ -24,6 +24,10 @@ export function createProject(idea: string, scenarioId?: string | null): Promise
   return apiFetch<Project>('/projects', { method: 'POST', body: { idea, scenarioId } })
 }
 
+export function deleteProject(id: string): Promise<void> {
+  return apiFetch<void>(`/projects/${id}`, { method: 'DELETE' })
+}
+
 export function finalizeRequirements(id: string): Promise<FinalizeResult> {
   return apiFetch<FinalizeResult>(`/projects/${id}/requirements/finalize`, {
     method: 'POST',
