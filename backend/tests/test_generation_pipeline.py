@@ -172,7 +172,44 @@ async def test_no_upload_pipeline_ready_both_agent_modes(db, tmp_path, monkeypat
     assert spec["provenance"]["kind"] == "sample"
     assert json.loads(ws.read_file(pid, "backend/data/dataset.json"))["rows"] == fixture["rows"]
     assert _read_endpoints(pid, spec) == fixture["payloads"]
+    presentation = project["presentation"]
+    assert presentation["status"] == "available", presentation
+    bundle = json.loads((ws.workspace_dir(pid) / "presentation/input.json").read_bytes())
+    assert bundle["snapshot"]["endpoints"] == _read_endpoints(pid, spec)
+    assert bundle["spec"] == spec
+    assert bundle["snapshot"]["provenance"]["kind"] == "sample"
+    assert bundle["copy"]["problem"] == "sample test"
+    assert bundle["theme"]["css"]
+    from app.presentation.service import read_input
+
+    assert read_input(pid, presentation) == bundle
     if mode == "llm-double":
         assert len(calls) == 2
         assert calls[0]["dataset"] == calls[1]["requirements"]["dataset"]
         assert calls[1]["requirements"]["sample"]["metric"] == fixture["metric"]
+
+
+@pytest.mark.parametrize("reason", ["failed", "timed out", "dependency unavailable"])
+async def test_capture_failure_still_ready_and_invalidates_old(db, tmp_path, monkeypatch, reason):
+    from app.generation import snapshot
+
+    monkeypatch.setattr(ws, "GENERATED_DIR", str(tmp_path))
+    pid = await ProjectRepository(db).create("Test", "Test", empty_requirements("test"), 100)
+    stale = ws.workspace_dir(pid) / "presentation"
+    stale.mkdir()
+    (stale / "input.json").write_text('{"stale": true}')
+
+    def fail(*args, **kwargs):
+        raise snapshot.CaptureError(f"Presentation capture {reason}.")
+
+    monkeypatch.setattr(snapshot, "capture", fail)
+    await PocGenerationService(
+        db, StubArchitectAgent(), StubDeveloperAgent(), StubReviewerAgent(), StubTesterAgent()
+    ).generate(pid)
+    project = await ProjectRepository(db).get_or_raise(pid)
+    assert project["status"] == "READY"
+    assert project["presentation"] == {
+        "status": "unavailable",
+        "reason": f"Presentation capture {reason}.",
+    }
+    assert not stale.exists()

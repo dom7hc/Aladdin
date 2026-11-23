@@ -8,6 +8,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.agents.base import RequirementAgent
 from app.agents.stubs import QUESTION_PER_FIELD
 from app.generation import renderer
+from app.presentation import service as presentation
 from app.repositories.message_repository import MessageRepository
 from app.repositories.project_repository import ProjectRepository
 from app.schemas.project import (
@@ -176,6 +177,7 @@ class ProjectService:
             completion = completion_from_steps(steps)
         return {
             "status": project["status"],
+            "presentation": project.get("presentation"),
             "currentStep": project.get("current_step"),
             "completion": completion,
             "steps": steps,
@@ -206,6 +208,7 @@ class ProjectService:
         """Clear a failed run so the pipeline can start again from scratch."""
         project = await self.repo.get_or_raise(project_id)
         steps = {key: "PENDING" for key in project["steps"]}
+        presentation.invalidate(project_id)
         await self.repo.update_fields(
             project_id,
             {
@@ -215,6 +218,7 @@ class ProjectService:
                 "steps": steps,
                 "repair_attempts": 0,
                 "error": None,
+                "presentation": {"status": "unavailable", "reason": "Generation retry pending."},
             },
         )
 
@@ -229,6 +233,15 @@ class ProjectService:
             }
             for artifact in project.get("artifacts", [])
         ]
+
+    async def presentation_input(self, project_id: str) -> dict:
+        project = await self.repo.get_or_raise(project_id)
+        if project["status"] != "READY":
+            raise InvalidTransitionError("Presentation requires a READY project.")
+        try:
+            return presentation.read_input(project_id, project.get("presentation"))
+        except presentation.InputUnavailable as exc:
+            raise InvalidTransitionError(str(exc)) from None
 
     async def deck_pptx(self, project_id: str) -> bytes:
         """A .pptx presenting this project's dashboard.

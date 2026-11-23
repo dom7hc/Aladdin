@@ -12,7 +12,17 @@ export type ProjectStatusValue =
 
 export type StepState = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
 
+export interface PresentationAvailability {
+  status: 'available' | 'unavailable'
+  reason?: string | null
+  schemaVersion?: number | null
+  inputHash?: string | null
+  capturedAt?: string | null
+  scope?: string | null
+}
+
 export interface Project {
+  presentation?: PresentationAvailability | null
   scenarioId?: string | null
   id: string
   name: string
@@ -77,6 +87,7 @@ export interface FinalizeResult {
 }
 
 export interface ProjectStatus {
+  presentation?: PresentationAvailability | null
   status: ProjectStatusValue
   currentStep: string | null
   completion: number

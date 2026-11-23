@@ -237,12 +237,17 @@ function computeStatus(state: MockState, project: Project): ProjectStatus {
   touchProject(project)
 
   if (phase.status === 'READY') {
+    project.presentation = {
+      status: 'unavailable',
+      reason: 'No stored presentation snapshot in this mock project.',
+    }
     ensureGenerationArtifacts(state, project)
     persist()
   }
 
   return {
     status: phase.status,
+    presentation: project.presentation,
     currentStep: phase.currentStep,
     completion: phase.completion,
     steps: buildSteps(phase.completed, phase.running),
@@ -439,6 +444,7 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
     generation.startedAt = Date.now()
     state.generation[projectId] = generation
     project.status = 'ARCHITECTING'
+    project.presentation = { status: 'unavailable', reason: 'Generation in progress.' }
     touchProject(project)
     return { projectId, status: 'STARTED' }
   }
@@ -446,6 +452,16 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
   // /projects/:id/status
   if (sub === 'status' && method === 'GET') {
     return computeStatus(state, project)
+  }
+
+  // Stored-input contract; realistic available mock bundles land with T014.
+  // Never pretend a legacy mock deck contains captured endpoint measurements.
+  if (sub === 'presentation-input' && method === 'GET') {
+    computeStatus(state, project)
+    if (project.status !== 'READY') {
+      throw new ApiError(409, 'Presentation requires a READY project.')
+    }
+    throw new ApiError(409, project.presentation?.reason ?? 'Presentation unavailable for this project.')
   }
 
   // /projects/:id/artifacts

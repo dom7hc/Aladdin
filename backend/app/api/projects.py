@@ -221,6 +221,15 @@ async def source(
     )
 
 
+@router.get("/{project_id}/presentation-input")
+async def presentation_input(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+) -> dict[str, Any]:
+    """Read the initial stored bundle; never execute generated code on GET."""
+    return await _guard(project_id, service.presentation_input(project_id))
+
+
 @router.get("/{project_id}/deck")
 async def deck(
     project_id: str,

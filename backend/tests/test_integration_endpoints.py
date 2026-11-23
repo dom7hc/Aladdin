@@ -32,7 +32,9 @@ def test_list_projects_shape(client, project_id):
         "createdAt",
         "updatedAt",
         "scenarioId",
+        "presentation",
     }
+    assert project["presentation"] is None  # legacy/new projects have no snapshot yet
 
 
 async def test_list_projects_breaks_equal_millisecond_ties(db):

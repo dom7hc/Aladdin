@@ -118,7 +118,17 @@ class ChatMessageResponse(CamelModel):
     created_at: datetime
 
 
+class PresentationAvailability(CamelModel):
+    status: str
+    reason: str | None = None
+    schema_version: int | None = None
+    input_hash: str | None = None
+    captured_at: str | None = None
+    scope: str | None = None
+
+
 class ProjectResponse(CamelModel):
+    presentation: PresentationAvailability | None = None
     scenario_id: str | None = None
     id: str
     name: str
@@ -130,6 +140,7 @@ class ProjectResponse(CamelModel):
 
 
 class StatusResponse(CamelModel):
+    presentation: PresentationAvailability | None = None
     status: str
     current_step: str | None
     completion: int

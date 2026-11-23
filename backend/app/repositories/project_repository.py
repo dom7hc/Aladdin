@@ -107,6 +107,7 @@ class ProjectRepository:
         return {
             "id": str(project["_id"]),
             "scenario_id": project.get("scenario_id"),
+            "presentation": project.get("presentation"),
             "name": project["name"],
             "description": project["description"],
             "status": project["status"],
