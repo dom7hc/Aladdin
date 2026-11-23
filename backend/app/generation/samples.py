@@ -257,6 +257,16 @@ SAMPLE_CONFIGS = {
 }
 
 
+# Monthly shifts (May..October) and where the target sits relative to the
+# middle category (positive: the target is harder to meet).
+SAMPLE_SHAPES = (
+    ((-0.10, -0.04, -0.08, -0.02, 0.0, 0.04), 0.02),  # rising, just short of target
+    ((0.06, 0.04, 0.03, 0.0, -0.03, -0.05), -0.03),  # falling, still ahead of target
+    ((0.02, -0.06, -0.09, -0.04, 0.0, 0.03), 0.01),  # dip and recovery
+    ((-0.03, 0.02, -0.02, 0.03, -0.01, 0.01), -0.02),  # flat and choppy, on track
+)
+
+
 def aggregate_payloads(rows: list[dict], metric: dict) -> dict:
     """Also shipped verbatim into stub backends; every value derives from rows."""
     field = metric["field"]
@@ -331,12 +341,19 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
     }
     rows = []
     dates = ("2026-05-31", "2026-06-30", "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-31")
+    # A deterministic profile per starter, so sample dashboards do not all tell
+    # the same story: its own trend shape, its own largest category, and a
+    # target inside the spread so some categories meet it and some do not.
+    profile = sum(map(ord, fixture_id)) % len(SAMPLE_SHAPES)
+    shifts, target_offset = SAMPLE_SHAPES[profile]
+    count = len(groups)
+    middle = 0.86 + 0.025 + (count - 1) / 2 * 0.07 + shifts[-1]
+    target = round(base * (middle - target_offset if lower else middle + target_offset), 2)
     for period, date in enumerate(dates):
         for group_index, group in enumerate(groups):
+            rank = (group_index * 3 + profile) % count
             for segment in range(3):
-                # September/October values are unchanged from the accepted chunk A.
-                shift = (-0.10, -0.04, -0.08, -0.02, 0, 0.04)[period]
-                multiplier = 0.86 + group_index * 0.07 + segment * 0.025 + shift
+                multiplier = 0.86 + rank * 0.07 + segment * 0.025 + shifts[period]
                 actual = round(base * multiplier, 2)
                 if unit == "/5":
                     actual = min(5, actual)
@@ -351,7 +368,7 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
                         dimension: group,
                         "sample_segment": ("A", "B", "C")[segment],
                         field: actual,
-                        "sample_target": round(base * (0.9 if lower else 1.06), 2),
+                        "sample_target": target,
                     }
                 )
     provenance = {
