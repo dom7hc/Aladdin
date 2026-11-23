@@ -13,6 +13,28 @@
 // greyscale and for colour-blind viewers.
 
 import { useEffect, useId, useState } from "react";
+import { finite } from "./insights";
+import type { Annotation } from "./insights";
+
+interface ChartComparison { kind: "target" | "prior"; label: string; field: string }
+interface StoryProps { comparison?: ChartComparison; annotation?: Annotation | null }
+const axisLabel = (value: unknown, limit = 12) => {
+  const text = String(value ?? "");
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+};
+
+function PointNote({ annotation, x, y, width }: {
+  annotation?: Annotation | null; x: number; y: number; width: number;
+}) {
+  if (!annotation) return null;
+  const labelX = Math.max(80, Math.min(width - 80, x));
+  return <g data-annotation={annotation.label}>
+    <title>{`${annotation.label}: ${annotation.value}`}</title>
+    <circle cx={x} cy={y} r={4} fill="var(--accent)" stroke="var(--surface-0)" strokeWidth={2} />
+    <line x1={x} x2={labelX} y1={y - 6} y2={20} stroke="var(--text-muted)" strokeDasharray="2 3" />
+    <text x={labelX} y={13} textAnchor="middle" className="chart-label">{annotation.text}</text>
+  </g>;
+}
 
 const SERIES = [
   "var(--series-1)",
@@ -34,6 +56,7 @@ export { formatNumber } from "./format";
 import { formatNumber } from "./format";
 
 function niceTicks(min: number, max: number, count = 4): number[] {
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
   if (min === max) return [min];
   const raw = (max - min) / count;
   const mag = 10 ** Math.floor(Math.log10(raw));
@@ -43,7 +66,7 @@ function niceTicks(min: number, max: number, count = 4): number[] {
   // Keep going until a tick reaches the data's max. Stopping half a step past
   // it left anything in that last half-step above the axis, drawn over the
   // chart title (data max 12, ticks 0/5/10).
-  for (let v = start; ; v += step) {
+  for (let v = start, i = 0; i < 32; v += step, i++) {
     const tick = Number(v.toFixed(10));
     ticks.push(tick);
     if (tick >= max) break;
@@ -210,27 +233,28 @@ export function Sparkline({ values }: { values: number[] }) {
   );
 }
 
-interface LineProps {
+interface LineProps extends StoryProps {
   rows: Record<string, unknown>[];
   xField: string;
   series: { label: string; field: string }[];
 }
 
-export function LineChart({ rows, xField, series }: LineProps) {
+export function LineChart({ rows, xField, series, comparison, annotation }: LineProps) {
   const [tip, setTip] = useState<Tip | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const gradientBase = useId();
   const [box, W] = useWidth(720);
 
-  if (!rows.length) return <p className="empty">No data yet.</p>;
+  const nums = series.flatMap(s => rows.flatMap(r => finite(r[s.field]) === null ? [] : [r[s.field] as number]));
+  if (!nums.length) return <p className="empty">No values for this period. Try a different filter.</p>;
 
   const H = 260;
-  const pad = { top: 14, right: 54, bottom: 30, left: 48 };
+  const pad = { top: 42, right: 54, bottom: 30, left: 48 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
-  const nums = series.flatMap((s) => rows.map((r) => Number(r[s.field]) || 0));
-  const ticks = niceTicks(Math.min(0, ...nums), Math.max(...nums));
+  const refs = comparison ? rows.flatMap(r => finite(r[comparison.field]) === null ? [] : [r[comparison.field] as number]) : [];
+  const ticks = niceTicks(Math.min(0, ...nums, ...refs), Math.max(0, ...nums, ...refs));
   const yMin = ticks[0];
   const yMax = ticks[ticks.length - 1];
   const ySpan = yMax - yMin || 1;
@@ -244,6 +268,15 @@ export function LineChart({ rows, xField, series }: LineProps) {
   // Only the lead series is filled: a second area over it mixes the two hues
   // into a third colour that belongs to neither.
   const filled = (index: number) => index === 0;
+  const pathFor = (field: string) => {
+    const runs: [number, number][][] = [[]];
+    rows.forEach((row, i) => {
+      const value = finite(row[field]);
+      if (value === null) { if (runs[runs.length - 1].length) runs.push([]); }
+      else runs[runs.length - 1].push([xAt(i), yAt(value)]);
+    });
+    return runs.filter(run => run.length).map(smoothPath).join(" ");
+  };
 
   return (
     <div ref={box}>
@@ -269,7 +302,7 @@ export function LineChart({ rows, xField, series }: LineProps) {
               { label: String(rows[index][xField] ?? ""), value: "" },
               ...series.map((s, si) => ({
                 label: s.label,
-                value: formatNumber(Number(rows[index][s.field]) || 0),
+                value: formatNumber(finite(rows[index][s.field]) ?? NaN),
                 color: seriesColor(si),
               })),
             ],
@@ -297,7 +330,7 @@ export function LineChart({ rows, xField, series }: LineProps) {
         {rows.map((row, i) =>
           i % labelEvery === 0 ? (
             <text className="chart-axis" key={i} x={xAt(i)} y={H - 10} textAnchor="middle">
-              {String(row[xField] ?? "")}
+              <title>{String(row[xField] ?? "")}</title>{axisLabel(row[xField])}
             </text>
           ) : null,
         )}
@@ -312,14 +345,27 @@ export function LineChart({ rows, xField, series }: LineProps) {
           />
         ) : null}
 
+        {comparison && refs.length ? <path data-comparison={comparison.kind}
+          d={pathFor(comparison.field)} fill="none" stroke="var(--series-1)"
+          strokeWidth={comparison.kind === "prior" ? 1.5 : 2}
+          opacity={comparison.kind === "prior" ? 0.35 : 0.8} strokeDasharray="7 5">
+          <title>{comparison.label}</title>
+        </path> : null}
+        {comparison?.kind === "target" && refs.length ? <text className="chart-axis"
+          stroke="var(--surface-0)" strokeWidth={3} paintOrder="stroke"
+          x={W - pad.right - 4} y={yAt(refs[refs.length - 1]) - 6} textAnchor="end">
+          {`${axisLabel(comparison.label, 18)} ${formatNumber(refs[refs.length - 1])}`}
+        </text> : null}
         {series.map((s, si) => {
-          const points = rows.map((r, i) => [xAt(i), yAt(Number(r[s.field]) || 0)] as [number, number]);
-          const line = smoothPath(points);
+          const valid = rows.flatMap((r, i) => finite(r[s.field]) === null ? [] : [{ i, value: r[s.field] as number }]);
+          if (!valid.length) return null;
+          const points = valid.map(r => [xAt(r.i), yAt(r.value)] as [number, number]);
+          const line = pathFor(s.field);
           const last = points[points.length - 1];
-          const lastValue = Number(rows[rows.length - 1][s.field]) || 0;
+          const lastValue = valid[valid.length - 1].value;
           return (
             <g key={s.field}>
-              {filled(si) && points.length > 1 ? (
+              {filled(si) && points.length > 1 && valid.length === rows.length ? (
                 <path
                   d={`${line} L${last[0]},${baseline} L${points[0][0]},${baseline} Z`}
                   fill={gradientUrl(`${gradientBase}-${si}`)}
@@ -337,7 +383,7 @@ export function LineChart({ rows, xField, series }: LineProps) {
               <text className="chart-label" x={W - pad.right + 8} y={last[1] + 4} fill={seriesColor(si)}>
                 {formatNumber(lastValue)}
               </text>
-              {hoverIndex !== null ? (
+              {hoverIndex !== null && finite(rows[hoverIndex][s.field]) !== null ? (
                 <circle
                   cx={xAt(hoverIndex)}
                   cy={yAt(Number(rows[hoverIndex][s.field]) || 0)}
@@ -350,14 +396,18 @@ export function LineChart({ rows, xField, series }: LineProps) {
             </g>
           );
         })}
-      </svg>
-      <Legend items={legend} />
+        <PointNote annotation={annotation} x={annotation ? xAt(annotation.index) : 0}
+          y={annotation ? yAt(annotation.value) : 0} width={W} />
+       </svg>
+       <Legend items={[...legend, ...(comparison && refs.length ? [{
+         label: comparison.label, color: "var(--series-1)", dash: "7 5",
+       }] : [])]} />
       <Tooltip tip={tip} />
     </div>
   );
 }
 
-interface BarProps {
+interface BarProps extends StoryProps {
   rows: Record<string, unknown>[];
   categoryField: string;
   series: { label: string; field: string }[];
@@ -373,26 +423,28 @@ function barPath(x: number, y: number, w: number, h: number, r: number): string 
   );
 }
 
-export function BarChart({ rows, categoryField, series }: BarProps) {
+export function BarChart({ rows, categoryField, series, comparison, annotation }: BarProps) {
   const [tip, setTip] = useState<Tip | null>(null);
   const [hoverRow, setHoverRow] = useState<number | null>(null);
   const [box, W] = useWidth(720);
-  if (!rows.length) return <p className="empty">No data yet.</p>;
+  const nums = series.flatMap(s => rows.flatMap(r => finite(r[s.field]) === null ? [] : [r[s.field] as number]));
+  if (!nums.length) return <p className="empty">No values for this period. Try a different filter.</p>;
 
   const H = 260;
-  const pad = { top: 22, right: 16, bottom: 34, left: 48 };
+  const pad = { top: 42, right: 16, bottom: 34, left: 48 };
   const plotW = W - pad.left - pad.right;
   const plotH = H - pad.top - pad.bottom;
 
-  const nums = series.flatMap((s) => rows.map((r) => Number(r[s.field]) || 0));
-  const ticks = niceTicks(0, Math.max(...nums));
-  const yMax = ticks[ticks.length - 1] || 1;
+  const refs = comparison ? rows.flatMap(r => finite(r[comparison.field]) === null ? [] : [r[comparison.field] as number]) : [];
+  const ticks = niceTicks(Math.min(0, ...nums, ...refs), Math.max(0, ...nums, ...refs));
+  const yMin = ticks[0], yMax = ticks[ticks.length - 1];
+  const span = yMax - yMin || 1;
 
   const groupW = plotW / rows.length;
   // Bars stay slim on wide charts: a 120px slab per category reads as a block.
-  const inner = Math.min(groupW - 12, 56 * series.length);
+  const inner = Math.max(2, Math.min(groupW - 12, 56 * series.length));
   const barW = Math.max(6, inner / series.length - 2); // 2px surface gap
-  const yAt = (v: number) => pad.top + plotH - (v / yMax) * plotH;
+  const yAt = (v: number) => pad.top + plotH - ((v - yMin) / span) * plotH;
   // Values on the bars when they fit; otherwise the tooltip carries them.
   const labelled = series.length === 1 && rows.length <= 12;
 
@@ -427,16 +479,17 @@ export function BarChart({ rows, categoryField, series }: BarProps) {
               onMouseEnter={() => setHoverRow(ri)}
             >
               <text className="chart-axis" x={pad.left + groupW * ri + groupW / 2} y={H - 12} textAnchor="middle">
-                {String(row[categoryField] ?? "")}
+                <title>{String(row[categoryField] ?? "")}</title>{axisLabel(row[categoryField], Math.max(3, Math.floor(groupW / 7)))}
               </text>
               {series.map((s, si) => {
-                const value = Number(row[s.field]) || 0;
+                const value = finite(row[s.field]);
+                if (value === null) return null;
                 const x = groupX + si * (barW + 2);
                 const y = yAt(value);
                 return (
                   <g key={s.field}>
                     <path
-                      d={barPath(x, y, barW, pad.top + plotH - y, 5)}
+                      d={barPath(x, Math.min(y, yAt(0)), barW, Math.abs(yAt(0) - y), 5)}
                       fill={seriesColor(si)}
                       onMouseMove={(event) =>
                         setTip({
@@ -450,7 +503,7 @@ export function BarChart({ rows, categoryField, series }: BarProps) {
                       }
                     />
                     {labelled ? (
-                      <text className="chart-label" x={x + barW / 2} y={y - 6} textAnchor="middle">
+                      <text className="chart-label" x={x + barW / 2} y={y + (value < 0 ? 14 : -6)} textAnchor="middle">
                         {formatNumber(value)}
                       </text>
                     ) : null}
@@ -460,8 +513,30 @@ export function BarChart({ rows, categoryField, series }: BarProps) {
             </g>
           );
         })}
+        {comparison ? rows.map((row, i) => {
+          const value = finite(row[comparison.field]);
+          if (value === null) return null;
+          const x = pad.left + groupW * i;
+          return <g key={i} data-comparison={comparison.kind}>
+            <title>{`${comparison.label}: ${formatNumber(value)}`}</title>
+            {comparison.kind === "target" ? <line x1={x + 4} x2={x + groupW - 4}
+              y1={yAt(value)} y2={yAt(value)} stroke="var(--series-1)" strokeWidth={2} strokeDasharray="7 5" />
+              : <rect x={x + groupW / 2 - 20} width={40} y={Math.min(yAt(value), yAt(0))}
+                height={Math.max(1, Math.abs(yAt(value) - yAt(0)))} fill="none"
+                stroke="var(--series-1)" strokeWidth={1.5} strokeDasharray="7 5" opacity={0.35} />}
+          </g>;
+        }) : null}
+        <PointNote annotation={annotation}
+          x={annotation ? pad.left + groupW * (annotation.index + 0.5) : 0}
+          y={annotation ? yAt(annotation.value) : 0} width={W} />
+        {comparison?.kind === "target" && refs.length ? <text className="chart-axis"
+          stroke="var(--surface-0)" strokeWidth={3} paintOrder="stroke"
+          x={W - pad.right - 4} y={yAt(refs[refs.length - 1]) - 6} textAnchor="end">
+          {`${axisLabel(comparison.label, 18)} ${formatNumber(refs[refs.length - 1])}`}
+        </text> : null}
       </svg>
-      <Legend items={series.map((s, i) => ({ label: s.label, color: seriesColor(i) }))} />
+      <Legend items={[...series.map((s, i) => ({ label: s.label, color: seriesColor(i) })),
+        ...(comparison && refs.length ? [{ label: comparison.label, color: "var(--series-1)", dash: "7 5" }] : [])]} />
       <Tooltip tip={tip} />
     </div>
   );

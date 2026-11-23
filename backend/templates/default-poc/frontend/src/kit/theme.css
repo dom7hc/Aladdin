@@ -925,13 +925,37 @@ tbody input {
   }
 }
 
-/* Cards rise in one after another, quickly: 40ms apart, done in under half a
- * second for a full dashboard. Off entirely under prefers-reduced-motion. */
+/* 200ms entrance + capped 100ms stagger: the whole page settles by 300ms. */
 @media (prefers-reduced-motion: no-preference) {
   .cell {
-    animation: rise 380ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-    animation-delay: calc(var(--i, 0) * 40ms);
+    animation: rise 200ms ease-out both;
+    animation-delay: calc(min(var(--i, 0), 2.5) * 40ms);
   }
+}
+
+@media print {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+.hero { padding: 32px; border-top: 3px solid var(--accent); }
+.hero-label { font-size: 14px; color: var(--text-muted); overflow-wrap: anywhere; }
+.hero-main { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 32px; margin: 12px 0; }
+.hero-value { font-size: clamp(48px, 5vw, 64px); line-height: 1.1; font-weight: 750; letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.hero-unit { font-size: 0.32em; font-weight: 500; margin-left: 8px; letter-spacing: 0; }
+.hero-comparison { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.hero-insight { margin: 0; font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.sample-badge { display: inline-block; padding: 3px 8px; margin-top: 6px; border: 1px solid var(--border); border-radius: 99px; font-size: 11px; }
+.skeleton-hero { min-height: 210px; }
+.data-state { padding: 32px 16px; text-align: center; min-height: 140px; }
+.data-state > span { font-size: 28px; color: var(--text-muted); }
+.data-state p { margin: 8px 0; }
+.hero .delta { white-space: normal; overflow-wrap: anywhere; }
+.hero-comparison .tile-note { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .hero { padding: 32px; }
+  .shell-header { flex-wrap: wrap; }
+  .shell-header > div { min-width: 0; }
+  .shell-title { overflow-wrap: anywhere; }
 }
 
 @keyframes rise {

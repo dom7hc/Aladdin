@@ -18,7 +18,7 @@ export interface StatWidget {
   trendField?: string;
   /** One of the names in icons.tsx; absent or unknown, one is guessed from the label. */
   icon?: string;
-  /** A rise is bad news (attrition, defects, cost); absent, guessed from the label. */
+  /** Explicit favourable direction; absent remains neutral, never guessed. */
   lowerIsBetter?: boolean;
   /** What the change compares against, e.g. "vs last month". */
   deltaLabel?: string;

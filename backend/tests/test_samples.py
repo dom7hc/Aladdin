@@ -26,7 +26,15 @@ def test_all_twenty_sample_contracts(scenario):
     assert metric["unit"] == fixture["spec"]["hero"]["unit"]
     assert isinstance(metric["lowerIsBetter"], bool)
     assert fixture["spec"]["hero"]["comparison"]["label"] == "Sample target"
-    assert {r["date"] for r in fixture["rows"]} == {"2026-09-30", "2026-10-31"}
+    dates = sorted({r["date"] for r in fixture["rows"]})
+    assert len(dates) >= 6
+    assert dates[-2:] == ["2026-09-30", "2026-10-31"]
+    assert len({sum(r["date"] == d for r in fixture["rows"]) for d in dates}) == 1
+    assert fixture["spec"]["subtitle"] == "Sample data · October 2026"
+    table = next(w for w in fixture["spec"]["widgets"] if w["kind"] == "table")
+    assert all(c["field"] != "id" for c in table["columns"])
+    assert len(fixture["payloads"]["/api/records"]) == 4
+    assert all("variance" in row and "id" not in row for row in fixture["payloads"]["/api/records"])
     assert fixture["chartGuidance"]["reason"]
     assert spec_endpoints(fixture["spec"]) <= set(fixture["payloads"])
     json.dumps(fixture, allow_nan=False)

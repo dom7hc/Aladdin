@@ -1,6 +1,6 @@
 """Deterministic synthetic summaries, not records about real people/businesses.
 
-Two complete months, a fixed date anchor, equal-weight team/cohort summaries,
+Six complete months, a fixed date anchor, equal-weight team/cohort summaries,
 and explicitly labelled sample targets. No random clock or model-created data.
 The registry is used ONLY when no upload exists (enforced by preparation).
 """
@@ -297,7 +297,9 @@ def aggregate_payloads(rows: list[dict], metric: dict) -> dict:
         },
         "/api/breakdown": breakdown,
         "/api/series": series,
-        "/api/records": current,
+        "/api/records": [
+            {**row, "variance": round(row["actual"] - row["target"], 4)} for row in breakdown
+        ],
     }
 
 
@@ -328,10 +330,13 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
         "dimension": dimension,
     }
     rows = []
-    for period, date in enumerate(("2026-09-30", "2026-10-31")):
+    dates = ("2026-05-31", "2026-06-30", "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-31")
+    for period, date in enumerate(dates):
         for group_index, group in enumerate(groups):
             for segment in range(3):
-                multiplier = 0.86 + group_index * 0.07 + segment * 0.025 + period * 0.04
+                # September/October values are unchanged from the accepted chunk A.
+                shift = (-0.10, -0.04, -0.08, -0.02, 0, 0.04)[period]
+                multiplier = 0.86 + group_index * 0.07 + segment * 0.025 + shift
                 actual = round(base * multiplier, 2)
                 if unit == "/5":
                     actual = min(5, actual)
@@ -344,7 +349,7 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
                         "id": len(rows) + 1,
                         "date": date,
                         dimension: group,
-                        "segment": ("A", "B", "C")[segment],
+                        "sample_segment": ("A", "B", "C")[segment],
                         field: actual,
                         "sample_target": round(base * (0.9 if lower else 1.06), 2),
                     }
@@ -366,7 +371,7 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
     spec = normalize_spec(
         {
             "title": scenario.title if scenario else "Sample activity overview",
-            "subtitle": "October 2026 · synthetic team/cohort summaries",
+            "subtitle": "Sample data · October 2026",
             "layout": scenario.layout if scenario else "kpi-overview",
             "provenance": provenance,
             "widgets": [
@@ -399,13 +404,16 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
                 },
                 {
                     "kind": "table",
-                    "title": "Sample cohort summaries",
+                    "title": f"October detail by {dimension.replace('_', ' ')}",
                     "endpoint": "/api/records",
                     "columns": [
-                        {"label": "ID", "field": "id"},
-                        {"label": "Group", "field": dimension},
-                        {"label": label, "field": field},
-                        {"label": "Sample target", "field": "sample_target"},
+                        {"label": dimension.replace("_", " ").title(), "field": "label"},
+                        {"label": f"{label} ({unit})", "field": "actual"},
+                        {"label": f"Sample target ({unit})", "field": "target"},
+                        {
+                            "label": "Variance (pp)" if unit == "%" else f"Variance ({unit})",
+                            "field": "variance",
+                        },
                     ],
                 },
             ],
@@ -422,7 +430,7 @@ def sample_for(scenario_id: str | None) -> dict[str, Any]:
                 "kind": kind,
                 "reason": reason,
                 "dimension": dimension,
-                "secondDimension": "segment",
+                "secondDimension": "sample_segment",
                 "timeField": "date",
                 "noConversionClaim": True,
             },

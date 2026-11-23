@@ -9,7 +9,15 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "frontend/src/dashboard-kit"
 MIRROR = ROOT / "backend/templates/default-poc/frontend/src/kit"
-SHARED = ("types.ts", "normalize.ts", "format.ts", "snapshot.ts", "charts.tsx", "export.css")
+SHARED = (
+    "types.ts",
+    "normalize.ts",
+    "format.ts",
+    "snapshot.ts",
+    "insights.ts",
+    "charts.tsx",
+    "export.css",
+)
 
 
 def test_template_mirror_is_byte_identical():
