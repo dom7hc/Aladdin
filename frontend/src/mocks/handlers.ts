@@ -308,6 +308,11 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
 
   // GET /projects/:id
   if (segments.length === 2) {
+    if (method === 'DELETE') {
+      state.projects = state.projects.filter((item) => item.id !== projectId)
+      delete state.messages[projectId]
+      return undefined
+    }
     if (method !== 'GET') throw new ApiError(405, 'Method not allowed')
     return project
   }

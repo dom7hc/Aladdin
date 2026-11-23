@@ -25,3 +25,6 @@ class MessageRepository:
         """Full chat history in chronological order."""
         cursor = self.collection.find({"project_id": project_id}).sort("_id", 1)
         return list(await cursor.to_list(length=None))
+
+    async def delete_for_project(self, project_id: str) -> None:
+        await self.collection.delete_many({"project_id": project_id})

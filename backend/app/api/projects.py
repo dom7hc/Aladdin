@@ -372,3 +372,20 @@ async def _guard(project_id: str, awaitable: Any) -> Any:
         raise HTTPException(status_code=404, detail="Project not found") from None
     except InvalidTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from None
+
+
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(
+    project_id: str,
+    service: Annotated[ProjectService, Depends(get_project_service)],
+    preview: Annotated[PreviewService, Depends(get_preview_service)],
+) -> None:
+    try:
+        state = await preview.get_state(project_id)
+    except ProjectNotFoundError:
+        raise HTTPException(status_code=404, detail="Project not found") from None
+    if state.get("status") == "building":
+        raise HTTPException(status_code=409, detail="Wait for the preview to finish building.")
+    if state.get("status") != "none":
+        await preview.stop(project_id)
+    await _guard(project_id, service.delete(project_id))

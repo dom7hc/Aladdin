@@ -1,6 +1,8 @@
 """Project use-cases: create, chat, finalize, status, artifacts, source export."""
 
 import json
+import shutil
+from pathlib import Path
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -9,6 +11,7 @@ from app.agents.base import RequirementAgent
 from app.agents.stubs import QUESTION_PER_FIELD
 from app.generation import renderer
 from app.presentation import service as presentation
+from app.repositories.dataset_repository import DatasetRepository
 from app.repositories.message_repository import MessageRepository
 from app.repositories.project_repository import ProjectRepository
 from app.schemas.project import (
@@ -32,6 +35,7 @@ class ProjectService:
     def __init__(self, db: AsyncIOMotorDatabase, requirement_agent: RequirementAgent) -> None:
         self.repo = ProjectRepository(db)
         self.messages = MessageRepository(db)
+        self.datasets = DatasetRepository(db)
         self.requirement_agent = requirement_agent
 
     async def create(self, idea: str, scenario_id: str | None = None) -> ProjectResponse:
@@ -165,6 +169,21 @@ class ProjectService:
         steps = {**project["steps"], "requirements": "COMPLETED"}
         await self.repo.update_fields(project_id, {"status": "REQUIREMENT_READY", "steps": steps})
         return {"status": "REQUIREMENT_READY", "artifactCount": 2}
+
+    async def delete(self, project_id: str) -> None:
+        """Remove the project, its chat, its uploaded file and its generated files.
+
+        Refused while a pipeline runs: it would keep writing to a deleted project.
+        The caller stops any preview first.
+        """
+        project = await self.repo.get_or_raise(project_id)
+        if project["status"] in self.GENERATING_STATUSES:
+            raise InvalidTransitionError("Wait for generation to finish before deleting.")
+        await self.messages.delete_for_project(project_id)
+        await self.datasets.delete(project_id)
+        await self.repo.delete(project_id)
+        # Not ws.workspace_dir(): that creates the directory.
+        shutil.rmtree(Path(ws.GENERATED_DIR) / str(project["_id"]), ignore_errors=True)
 
     async def status(self, project_id: str) -> dict[str, Any]:
         project = await self.repo.get_or_raise(project_id)

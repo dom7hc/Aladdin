@@ -52,6 +52,9 @@ class ProjectRepository:
         result = await self.collection.insert_one(doc)
         return str(result.inserted_id)
 
+    async def delete(self, project_id: str) -> None:
+        await self.collection.delete_one({"_id": self.parse_id(project_id)})
+
     async def get(self, project_id: str) -> dict[str, Any] | None:
         return await self.collection.find_one({"_id": self.parse_id(project_id)})
 

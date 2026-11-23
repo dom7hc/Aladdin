@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { MaterialIcon } from '@/components/ui/MaterialIcon'
+import { useDeleteProject } from '@/hooks/useProjects'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { statusMeta } from '@/lib/status'
 import { timeAgo } from '@/lib/format'
@@ -30,6 +31,18 @@ export function ProjectCard({ project }: { project: Project }) {
   const isLive =
     ['ARCHITECTING', 'GENERATING', 'REVIEWING', 'TESTING'].includes(project.status)
 
+  const remove = useDeleteProject()
+  const onDelete = (event: React.MouseEvent) => {
+    // The whole card is a link; deleting must not open the project.
+    event.preventDefault()
+    event.stopPropagation()
+    if (window.confirm(`Delete "${project.name}"? This removes its chat, data and generated app.`)) {
+      remove.mutate(project.id, {
+        onError: (error) => window.alert(`Could not delete the project: ${error.message}`),
+      })
+    }
+  }
+
   return (
     <Link
       to={routeForStatus(project)}
@@ -38,7 +51,21 @@ export function ProjectCard({ project }: { project: Project }) {
       <div className="mb-4">
         <div className="mb-2 flex items-center justify-between">
           <StatusBadge label={meta.label} tone={meta.tone} pulse={isLive} />
-          <span className="text-[11px] text-outline">{timeAgo(project.updatedAt)}</span>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-outline">{timeAgo(project.updatedAt)}</span>
+            {!isLive && (
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={remove.isPending}
+                aria-label={`Delete ${project.name}`}
+                title="Delete project"
+                className="flex rounded-full p-1 text-outline transition-colors hover:bg-error/10 hover:text-error disabled:opacity-50"
+              >
+                <MaterialIcon name="delete" size={16} />
+              </button>
+            )}
+          </div>
         </div>
         <h3 className="mb-1 text-headline-sm text-on-surface transition-colors group-hover:text-primary">
           {project.name}
