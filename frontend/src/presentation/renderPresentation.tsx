@@ -9,7 +9,13 @@ import { buildStandaloneHtml } from "../dashboard-kit/export";
 import { PresentationSlides, RENDERER_VERSION } from "../dashboard-kit/presentation";
 import type { PresentationInput } from "../dashboard-kit/presentation";
 
-const frame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+// Browsers pause animation frames in hidden tabs (e.g. once "Open presentation"
+// brings the new tab to the front), so a timer guarantees the wait still ends.
+const frame = () =>
+  new Promise<void>(resolve => {
+    requestAnimationFrame(() => resolve());
+    setTimeout(resolve, 100);
+  });
 
 /** Wait until the charts stop resizing (ResizeObserver settles in a frame or two). */
 async function settle(host: HTMLElement, maxFrames = 30): Promise<void> {
