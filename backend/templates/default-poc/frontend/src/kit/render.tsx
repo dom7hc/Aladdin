@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BarChart, DonutChart, LineChart } from "./charts";
 import { Icon } from "./icons";
+import { asRows, asObject, trustworthyDelta, endpointsFor } from "./normalize";
 import type { DashboardSpec, Widget } from "./types";
 import {
   Card,
@@ -73,35 +74,6 @@ function useEndpointData(
   }, [key]);
 
   return { data, errors, loading };
-}
-
-function asRows(payload: Payload | undefined): Record<string, unknown>[] {
-  if (Array.isArray(payload)) return payload;
-  if (payload && typeof payload === "object") {
-    // Endpoints often wrap a list: {items: [...]}, {rows: [...]}, {data: [...]}.
-    for (const key of ["items", "rows", "data", "results"]) {
-      const value = (payload as Record<string, unknown>)[key];
-      if (Array.isArray(value)) return value as Record<string, unknown>[];
-    }
-  }
-  return [];
-}
-
-/**
- * A change worth showing, or none. A missing or non-numeric value used to read
- * as "0.0%", and a seen-live "▼29230%" came from a backend dividing by a near
- * empty period: past 999% the figure says more about the maths than the data.
- */
-function trustworthyDelta(value: unknown): number | undefined {
-  if (value === null || value === undefined || value === "") return undefined;
-  const number = Number(value);
-  if (!Number.isFinite(number) || Math.abs(number) > 999) return undefined;
-  return number;
-}
-
-function asObject(payload: Payload | undefined): Record<string, unknown> {
-  if (Array.isArray(payload)) return payload[0] ?? {};
-  return (payload as Record<string, unknown>) ?? {};
 }
 
 function WidgetView({
@@ -337,7 +309,7 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
     if (look) document.documentElement.setAttribute("data-look", look);
   }, [look]);
   const endpoints = useMemo(
-    () => Array.from(new Set(spec.widgets.map((w) => w.endpoint))),
+    () => endpointsFor(spec),
     [spec],
   );
   const { data, errors, loading } = useEndpointData(endpoints, filters, refresh);
@@ -370,6 +342,9 @@ export function Dashboard({ spec }: { spec: DashboardSpec }) {
         </span>
         <div>
           <h1 className="shell-title">{spec.title}</h1>
+          {spec.provenance?.kind === "sample" ? (
+            <span className="shell-source" role="note">Sample data · synthetic, not real business records</span>
+          ) : null}
           {spec.subtitle ? <div className="shell-sub">{spec.subtitle}</div> : null}
           {spec.source ? <SourceNote source={spec.source} /> : null}
         </div>

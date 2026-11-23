@@ -100,7 +100,7 @@ async def create_project(
     payload: ProjectCreate,
     service: Annotated[ProjectService, Depends(get_project_service)],
 ) -> ProjectResponse:
-    return await service.create(payload.idea)
+    return await service.create(payload.idea, payload.scenario_id)
 
 
 @router.get("", response_model=list[ProjectResponse])

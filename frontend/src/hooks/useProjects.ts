@@ -14,7 +14,8 @@ export function useProjectsQuery() {
 export function useCreateProject() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (idea: string) => createProject(idea),
+    mutationFn: ({ idea, scenarioId }: { idea: string; scenarioId?: string | null }) =>
+      createProject(idea, scenarioId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projects })
     },

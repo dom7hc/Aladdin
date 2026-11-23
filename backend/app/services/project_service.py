@@ -33,7 +33,7 @@ class ProjectService:
         self.messages = MessageRepository(db)
         self.requirement_agent = requirement_agent
 
-    async def create(self, idea: str) -> ProjectResponse:
+    async def create(self, idea: str, scenario_id: str | None = None) -> ProjectResponse:
         requirements = {"problem": idea.strip()}
         # The idea is the initial problem statement; first chat question targets the next field.
         requirements.update(
@@ -54,6 +54,12 @@ class ProjectService:
         project_id = await self.repo.create(
             name, idea.strip(), requirements, completion_of(requirements)
         )
+        if scenario_id is not None:
+            requirements["scenarioId"] = scenario_id
+            await self.repo.update_requirements(
+                project_id, requirements, completion_of(requirements)
+            )
+            await self.repo.update_fields(project_id, {"scenario_id": scenario_id})
         await self.messages.insert(project_id, "assistant", QUESTION_PER_FIELD["targetUsers"])
         return await self.get(project_id)
 

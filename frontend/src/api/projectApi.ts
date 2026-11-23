@@ -20,8 +20,8 @@ export function getProject(id: string): Promise<Project> {
   return apiFetch<Project>(`/projects/${id}`)
 }
 
-export function createProject(idea: string): Promise<Project> {
-  return apiFetch<Project>('/projects', { method: 'POST', body: { idea } })
+export function createProject(idea: string, scenarioId?: string | null): Promise<Project> {
+  return apiFetch<Project>('/projects', { method: 'POST', body: { idea, scenarioId } })
 }
 
 export function finalizeRequirements(id: string): Promise<FinalizeResult> {

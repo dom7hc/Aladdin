@@ -13,6 +13,7 @@ export type ProjectStatusValue =
 export type StepState = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED'
 
 export interface Project {
+  scenarioId?: string | null
   id: string
   name: string
   description: string
@@ -95,6 +96,7 @@ export interface PreviewState {
 
 export interface CreateProjectRequest {
   idea: string
+  scenarioId?: string | null
 }
 
 export interface ChatRequest {

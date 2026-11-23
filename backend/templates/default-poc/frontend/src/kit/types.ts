@@ -91,6 +91,9 @@ export type Widget = (
 ) & {
   /** Backend path this widget reads, e.g. "/api/metrics". */
   endpoint: string;
+  id?: string;
+  unit?: string;
+  comparison?: Comparison;
 };
 
 export interface Filter {
@@ -100,6 +103,9 @@ export interface Filter {
 }
 
 export interface DashboardSpec {
+  schemaVersion?: 2;
+  hero?: HeroBinding | null;
+  provenance?: Provenance;
   title: string;
   subtitle?: string;
   layout: Layout;
@@ -110,4 +116,45 @@ export interface DashboardSpec {
   filters?: Filter[];
   /** The user's file, written by the platform: shown under the title. */
   source?: { filename: string; rows: number; fileRows: number };
+}
+
+/** Numeric conclusions are computed from payloads, never model-supplied copy. */
+export interface Comparison {
+  kind: "target" | "prior";
+  label: string;
+  endpoint: string;
+  field: string;
+  unit: string;
+  /** Align previous series by category/time key, never by array position. */
+  keyField?: string;
+}
+
+export interface HeroBinding {
+  id: string;
+  label: string;
+  endpoint: string;
+  field: string;
+  unit?: string;
+  lowerIsBetter?: boolean | null;
+  minSamples?: number;
+  comparison?: Comparison;
+}
+
+export interface Provenance {
+  kind: "sample" | "upload" | "unknown";
+  fixtureId?: string;
+  seed?: number;
+  dateAnchor?: string;
+  label?: string;
+}
+
+export type Payload = Record<string, unknown> | Record<string, unknown>[];
+
+export interface DashboardSnapshot {
+  schemaVersion: 1;
+  specHash: string;
+  capturedAt: string;
+  scope: string;
+  endpoints: Record<string, Payload>;
+  provenance: Provenance;
 }

@@ -20,6 +20,12 @@ from app.agents.base import (
     TestResult,
 )
 from app.generation import runner
+from app.generation.prepare import (
+    prepare_inputs,
+    stub_architecture,
+    stub_backend_source,
+    write_dashboard,
+)
 from app.schemas.project import (
     LIST_FIELDS,
     completion_of,
@@ -141,13 +147,7 @@ class StubRequirementAgent(RequirementAgent):
 
 class StubArchitectAgent(ArchitectAgent):
     async def run(self, requirements: dict[str, Any]) -> dict[str, Any]:
-        return {
-            "pages": [{"name": "HomePage", "purpose": "Main page of the PoC"}],
-            "apis": [{"method": "GET", "path": "/api/items"}],
-            "entities": [{"name": "Item", "fields": ["id", "name"]}],
-            "services": ["ItemService"],
-            "aiCapabilities": [],
-        }
+        return stub_architecture(requirements)
 
 
 class StubDeveloperAgent(DeveloperAgent):
@@ -158,11 +158,19 @@ class StubDeveloperAgent(DeveloperAgent):
         architecture: dict[str, Any],
         feedback: list[str] | None = None,
     ) -> list[str]:
+        data = None
+        if not requirements.get("dataset"):
+            requirements, data = prepare_inputs(requirements, None)
+        if not architecture.get("widgets"):
+            architecture = stub_architecture(requirements)
         written = []
         for relative_path in sorted(DEVELOPER_FILES):
             content = f'"""Generated for project {project_id}."""\n'
             ws.write_file(project_id, relative_path, content)
             written.append(relative_path)
+        written += write_dashboard(project_id, requirements, architecture, data)
+        ws.write_file(project_id, "backend/main.py", stub_backend_source(requirements))
+        written.append("backend/main.py")
         return written
 
 

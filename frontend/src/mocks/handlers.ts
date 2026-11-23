@@ -280,7 +280,8 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
     if (method === 'POST') {
       const idea = String((body as { idea?: string } | undefined)?.idea ?? '').trim()
       if (!idea) throw new ApiError(400, 'idea is required')
-      return createProject(idea)
+      const scenarioId = (body as { scenarioId?: string | null } | undefined)?.scenarioId
+      return createProject(idea, scenarioId)
     }
     if (method !== 'GET') throw new ApiError(405, 'Method not allowed')
     return [...state.projects].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -558,12 +559,17 @@ export function handleMockRequest({ method, path, body, headers }: MockRequest):
   throw new ApiError(404, `Unknown mock endpoint: ${method} ${path}`)
 }
 
-export function createProject(idea: string): Project {
+export function createProject(idea: string, scenarioId: string | null = null): Project {
+  if (scenarioId !== null && (typeof scenarioId !== 'string' || scenarioId.length > 64 ||
+      !/^[a-z0-9][a-z0-9-]*$/.test(scenarioId))) {
+    throw new ApiError(422, 'Invalid scenarioId')
+  }
   const state = getState()
   const name = deriveProjectName(idea)
   const now = new Date().toISOString()
 
   const project: Project = {
+    scenarioId,
     id: newId(),
     name,
     description: idea.trim(),

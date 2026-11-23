@@ -1,5 +1,27 @@
 """Full generation pipeline with stub agents: state machine, artifacts, workspace, ZIP."""
 
+import importlib.util
+import json
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.agents.llm import LlmArchitectAgent, LlmDeveloperAgent, LlmTesterAgent
+from app.agents.stubs import (
+    DEVELOPER_FILES,
+    REVIEW_PASS,
+    StubArchitectAgent,
+    StubDeveloperAgent,
+    StubReviewerAgent,
+    StubTesterAgent,
+)
+from app.catalogue import SCENARIOS
+from app.generation.samples import sample_for
+from app.generation.spec import spec_endpoints, validate_spec
+from app.repositories.project_repository import ProjectRepository
+from app.schemas.project import empty_requirements
+from app.services.generation_service import PocGenerationService
+from app.workspace import workspace as ws
 from tests.conftest import answer_all_questions
 
 
@@ -55,3 +77,102 @@ def test_pipeline_generates_workspace_and_zip(client, project_id):
 def test_source_before_generation_is_conflict(client, project_id):
     response = client.get(f"/api/projects/{project_id}/source")
     assert response.status_code == 409
+
+
+def _read_endpoints(project_id, spec):
+    source = ws.source_dir(project_id) / "backend/main.py"
+    module_spec = importlib.util.spec_from_file_location(f"poc_{project_id}", source)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    with TestClient(module.app) as generated:
+        result = {}
+        for path in spec_endpoints(spec):
+            response = generated.get(path)
+            assert response.status_code == 200, path
+            result[path] = response.json()
+        return result
+
+
+@pytest.mark.parametrize("scenario", SCENARIOS, ids=lambda s: s.id)
+async def test_all_starter_stub_preparation_contracts(db, tmp_path, monkeypatch, scenario):
+    monkeypatch.setattr(ws, "GENERATED_DIR", str(tmp_path))
+    from app.generation.prepare import prepare_inputs, write_dashboard
+
+    requirements, data = prepare_inputs({"scenarioId": scenario.id}, None)
+    fixture = sample_for(scenario.id)
+    assert data["rows"] == fixture["rows"]
+    architecture = await StubArchitectAgent().run(requirements)
+    pid = await ProjectRepository(db).create("T", "T", requirements, 100)
+    ws.copy_template(pid)
+    write_dashboard(pid, requirements, architecture, data)
+    await StubDeveloperAgent().run(pid, requirements, architecture)
+    spec = json.loads(ws.read_file(pid, "frontend/src/dashboard.config.json"))
+    assert validate_spec(spec) == []
+    assert spec["provenance"] == fixture["provenance"]
+    assert _read_endpoints(pid, spec) == fixture["payloads"]
+    assert "Sample data" in ws.read_file(pid, "frontend/src/kit/render.tsx")
+
+
+FIVE = [
+    "hiring-pipeline",
+    "sales-pipeline",
+    "budget-vs-actual",
+    "production-quality",
+    "energy-usage",
+]
+
+
+@pytest.mark.parametrize("starter", FIVE)
+@pytest.mark.parametrize("mode", ["stub", "llm-double"])
+async def test_no_upload_pipeline_ready_both_agent_modes(db, tmp_path, monkeypatch, starter, mode):
+    monkeypatch.setattr(ws, "GENERATED_DIR", str(tmp_path))
+    from app.generation.prepare import stub_backend_source
+
+    requirements = {**empty_requirements("sample test"), "scenarioId": starter}
+    pid = await ProjectRepository(db).create("Sample", "Sample", requirements, 100)
+    fixture = sample_for(starter)
+    calls = []
+
+    class Double:
+        async def complete(self, system, user):
+            request = json.loads(user)
+            calls.append(request)
+            if "architecture" not in request:
+                return json.dumps(fixture["spec"])
+            backend = stub_backend_source(request["requirements"])
+            return json.dumps(
+                {
+                    "files": [
+                        {"path": "backend/main.py", "content": backend},
+                        *[
+                            {"path": p, "content": "# double compatibility module\n"}
+                            for p in DEVELOPER_FILES
+                            if p.startswith("backend/")
+                        ],
+                        # Malicious/accidental data echo must not replace protected rows.
+                        {"path": "backend/data/dataset.json", "content": '{"rows": []}'},
+                    ]
+                }
+            )
+
+    architect = StubArchitectAgent() if mode == "stub" else LlmArchitectAgent(Double())
+    developer = StubDeveloperAgent() if mode == "stub" else LlmDeveloperAgent(Double())
+
+    class BackendReviewer(StubReviewerAgent):
+        async def run(self, requirements, architecture, files):
+            assert "backend/main.py" in files
+            return REVIEW_PASS
+
+    reviewer = StubReviewerAgent() if mode == "stub" else BackendReviewer()
+    tester = StubTesterAgent() if mode == "stub" else LlmTesterAgent(Double())
+    await PocGenerationService(db, architect, developer, reviewer, tester).generate(pid)
+    project = await ProjectRepository(db).get_or_raise(pid)
+    assert project["status"] == "READY", project.get("error")
+    spec = json.loads(ws.read_file(pid, "frontend/src/dashboard.config.json"))
+    assert spec["provenance"]["kind"] == "sample"
+    assert json.loads(ws.read_file(pid, "backend/data/dataset.json"))["rows"] == fixture["rows"]
+    assert _read_endpoints(pid, spec) == fixture["payloads"]
+    if mode == "llm-double":
+        assert len(calls) == 2
+        assert calls[0]["dataset"] == calls[1]["requirements"]["dataset"]
+        assert calls[1]["requirements"]["sample"]["metric"] == fixture["metric"]

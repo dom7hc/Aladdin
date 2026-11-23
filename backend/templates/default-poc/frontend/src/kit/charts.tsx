@@ -30,13 +30,8 @@ export function seriesColor(index: number): string {
   return SERIES[Math.min(index, SERIES.length - 1)];
 }
 
-export function formatNumber(value: number): string {
-  if (!isFinite(value)) return "—";
-  const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return abs < 10 && !Number.isInteger(value) ? value.toFixed(1) : String(Math.round(value));
-}
+export { formatNumber } from "./format";
+import { formatNumber } from "./format";
 
 function niceTicks(min: number, max: number, count = 4): number[] {
   if (min === max) return [min];

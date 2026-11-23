@@ -89,6 +89,10 @@ async def test_generation_designs_on_the_upload_and_ships_its_rows(db, tmp_path,
     project = await ProjectRepository(db).get(project_id)
     assert "dataset" not in project["requirements"]["content"]
     assert project["status"] == "READY"
+    spec = json.loads(ws.read_file(project_id, "frontend/src/dashboard.config.json"))
+    assert spec["provenance"]["kind"] == "upload"
+    assert "comparison" not in (spec.get("hero") or {})
+    assert all("sample_target" not in row for row in shipped["rows"])
 
 
 def test_pdf_upload_needs_claude(client, project_id, monkeypatch):

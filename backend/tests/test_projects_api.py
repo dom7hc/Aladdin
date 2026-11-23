@@ -33,3 +33,49 @@ def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_explicit_scenario_survives_create_autofill_and_get(client):
+    response = client.post(
+        "/api/projects", json={"idea": "Hiring", "scenarioId": "hiring-pipeline"}
+    )
+    assert response.status_code == 201
+    project = response.json()
+    assert project["scenarioId"] == "hiring-pipeline"
+    assert client.get(f"/api/projects/{project['id']}").json()["scenarioId"] == "hiring-pipeline"
+    state = client.post(f"/api/projects/{project['id']}/requirements/autofill").json()
+    assert state["requirements"]["scenarioId"] == "hiring-pipeline"
+    assert state["ready"]
+
+
+def test_custom_scenario_and_legacy_free_text_are_supported(client):
+    custom = client.post("/api/projects", json={"idea": "Custom", "scenarioId": "custom-role"})
+    assert custom.status_code == 201
+    assert custom.json()["scenarioId"] == "custom-role"
+    assert client.post("/api/projects", json={"idea": "Free text"}).json()["scenarioId"] is None
+    for bad in ("../x", "", "a" * 65, 123):
+        assert (
+            client.post("/api/projects", json={"idea": "x", "scenarioId": bad}).status_code == 422
+        )
+
+
+def test_mock_scenario_contract():
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    result = subprocess.run(
+        [
+            shutil.which("node"),
+            "--import",
+            "./scripts/register-ts-tests.mjs",
+            "--test",
+            "src/mocks/scenario.test.mjs",
+        ],
+        cwd=Path(__file__).resolve().parents[2] / "frontend",
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
