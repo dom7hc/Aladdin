@@ -1,6 +1,6 @@
 """Bounded initial API capture. Process isolation is NOT a security sandbox.
 
-The generated app owns aggregation and (only for editable tables) DB seeding.
+The generated app owns aggregation and any DB seeding, always into a throwaway POC_DB.
 Its lifespan reads the existing dataset; no second aggregation implementation.
 """
 
@@ -65,10 +65,12 @@ def capture(source: Path, spec: dict, *, timeout: float = 10) -> dict:
         request = directory / "request.json"
         output = directory / "output.json"
         request.write_bytes(canonical_bytes(paths))
-        if any(w.get("kind") == "table" and w.get("editable") for w in spec["widgets"]):
-            # Fresh absent path: the generated app seeds its own schema from the
-            # same dataset on startup. Never copy or read the preview database.
-            env["POC_DB"] = str(directory / "capture.db")
+        # Always a fresh absent path inside the owned temp dir. Generated apps
+        # open their DB at import with a default such as /data/poc.db, which
+        # the platform user cannot create on the server (capture then failed
+        # for every dashboard without an editable table). Apps that seed from
+        # the dataset do so on startup; the preview database is never touched.
+        env["POC_DB"] = str(directory / "capture.db")
         try:
             process = subprocess.Popen(
                 [sys.executable, "-I", str(Path(__file__).resolve()), str(request), str(output)],
