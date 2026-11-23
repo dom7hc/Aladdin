@@ -93,7 +93,8 @@ export function HomePage() {
   }, [projectsQuery.data, search, statusFilter, sortKey])
 
   const submit = () => {
-    const trimmed = idea.trim()
+    // A file alone is enough to start; the chat refines the idea from there.
+    const trimmed = idea.trim() || (file ? `Build a dashboard from ${file.name}` : '')
     if (!trimmed) return
     setUploadFailed(null)
     createProject.mutate({ idea: trimmed, scenarioId }, {
@@ -191,6 +192,7 @@ export function HomePage() {
                 <Button
                   onClick={submit}
                   loading={busy}
+                  disabled={!idea.trim() && !file}
                   trailingIcon={busy ? undefined : 'arrow_forward'}
                   className="shrink-0 px-4 py-2 text-xs"
                 >
