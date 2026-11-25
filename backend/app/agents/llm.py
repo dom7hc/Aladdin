@@ -588,7 +588,10 @@ _ARCHITECT_SYSTEM = (
     'title, labelField and valueField (optional unit); "table" needs title and '
     "columns[{label, field}]; a table whose rows users should create, edit and "
     'delete also takes "editable": true — then its first column must be '
-    '{"label": "ID", "field": "id"}. Status or health-pill widgets are not '
+    '{"label": "ID", "field": "id"}. Unless the idea is purely a read-only '
+    "report, make the table listing the individual rows (uploaded or sample) "
+    "editable so users can create, edit and delete records in the preview. "
+    "Status or health-pill widgets are not "
     "supported — express that data as a stat or a table instead; a table "
     "column named status, stage or priority is shown as a coloured chip.\n"
     f"At most {MAX_WIDGETS} widgets and {MAX_SERIES} series per chart. Choose "
