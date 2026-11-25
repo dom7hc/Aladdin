@@ -643,7 +643,10 @@ _ARCHITECT_SYSTEM += (
     "simple local /api/... paths, no queries, encodings or traversal. "
     "Numeric conclusions/insight text are computed by the platform, not supplied by you. "
     "When requirements.sample exists, use its spec bindings/metric and fixture summary; "
-    "you may choose the palette/look but not invent rows/units/targets. Uploads have "
+    "you may choose the palette/look but not invent rows/units/targets. Keep every "
+    "sample widget and, unless the idea is purely a read-only report, also add one "
+    'editable table ("editable": true) on its own endpoint /api/rows listing the '
+    "fixture rows, first column ID, so users can create, edit and delete them. Uploads have "
     "no sample targets or history unless those columns genuinely exist."
 )
 
